@@ -15,6 +15,19 @@
   .sprite { position: absolute; cursor: pointer; image-rendering: pixelated; transition: transform 0.1s; }
   .sprite:hover { transform: scale(1.08); z-index: 10; }
   .sprite img { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+  
+  /* Breathing / idle animations */
+  .anim-breathe { animation: breathe 3s ease-in-out infinite; }
+  .anim-sway { animation: sway 4s ease-in-out infinite; }
+  .anim-bob { animation: bob 2s ease-in-out infinite; }
+  .anim-flicker { animation: flicker 3s ease-in-out infinite; }
+  .anim-tail { animation: tail 1.5s ease-in-out infinite; }
+  
+  @keyframes breathe { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(1.02); } }
+  @keyframes sway { 0%,100% { transform: rotate(-1deg); } 50% { transform: rotate(1deg); } }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  @keyframes flicker { 0%,100% { opacity: 1; } 50% { opacity: 0.85; } }
+  @keyframes tail { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
   .sprite .label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); background: #222; color: #0f0; padding: 2px 6px; font-size: 10px; font-family: monospace; white-space: nowrap; border: 1px solid #0f0; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
   .sprite:hover .label { opacity: 1; }
   .tooltip { position: fixed; background: #222; color: #0f0; padding: 4px 10px; font-family: monospace; font-size: 12px; pointer-events: none; display: none; border: 1px solid #0f0; z-index: 100; }
@@ -146,16 +159,15 @@ drawBackground();
 
 // === SPRITES ===
 const sprites = [
-  { name: '故宫角楼', file: 'sprites/gugong.jpg', query: '北京故宫角楼 摄影', x: 20, y: 100, w: 180, h: 180 },
-  { name: '胡同门楼', file: 'sprites/hutong.jpg', query: '北京胡同 旅游攻略', x: 220, y: 140, w: 170, h: 170 },
-  { name: '煎饼摊', file: 'sprites/jianbing.jpg', query: '北京煎饼果子 推荐', x: 410, y: 180, w: 140, h: 140 },
-  { name: '奶茶店', file: 'sprites/milktea.jpg', query: '北京奶茶店 排行榜', x: 570, y: 130, w: 180, h: 180 },
-  { name: '便利店', file: 'sprites/milktea.jpg', query: '北京便利店 24小时', x: 770, y: 130, w: 180, h: 180 },
-  { name: '银杏树', file: 'sprites/ginkgo.jpg', query: '北京银杏大道 最佳时间', x: 970, y: 80, w: 130, h: 240 },
-  { name: '共享单车', file: 'sprites/bike.jpg', query: '北京共享单车', x: 400, y: 370, w: 80, h: 50 },
-  { name: '邮筒', file: 'sprites/mailbox.jpg', query: '中国邮政 明信片', x: 760, y: 330, w: 55, h: 70 },
-  { name: '胡同猫', file: 'sprites/cat.jpg', query: '北京胡同猫 纪录片', x: 195, y: 340, w: 60, h: 65 },
-  { name: '煎饼摊', file: 'sprites/jianbing.jpg', query: '北京煎饼果子', x: 410, y: 180, w: 140, h: 140 },
+  { name: '故宫角楼', file: 'sprites/gugong.jpg', query: '北京故宫角楼 摄影', x: 20, y: 100, w: 180, h: 180, anim: 'anim-breathe' },
+  { name: '胡同门楼', file: 'sprites/hutong.jpg', query: '北京胡同 旅游攻略', x: 220, y: 140, w: 170, h: 170, anim: 'anim-breathe' },
+  { name: '煎饼摊', file: 'sprites/jianbing.jpg', query: '北京煎饼果子 推荐', x: 410, y: 180, w: 140, h: 140, anim: 'anim-bob' },
+  { name: '奶茶店', file: 'sprites/milktea.jpg', query: '北京奶茶店 排行榜', x: 570, y: 130, w: 180, h: 180, anim: 'anim-flicker' },
+  { name: '便利店', file: 'sprites/milktea.jpg', query: '北京便利店 24小时', x: 770, y: 130, w: 180, h: 180, anim: 'anim-flicker' },
+  { name: '银杏树', file: 'sprites/ginkgo.jpg', query: '北京银杏大道 最佳时间', x: 970, y: 80, w: 130, h: 240, anim: 'anim-sway' },
+  { name: '共享单车', file: 'sprites/bike.jpg', query: '北京共享单车', x: 400, y: 370, w: 80, h: 50, anim: '' },
+  { name: '邮筒', file: 'sprites/mailbox.jpg', query: '中国邮政 明信片', x: 760, y: 330, w: 55, h: 70, anim: 'anim-breathe' },
+  { name: '胡同猫', file: 'sprites/cat.jpg', query: '北京胡同猫 纪录片', x: 195, y: 340, w: 60, h: 65, anim: 'anim-bob' },
 ];
 
 // Remove duplicate jianbing
@@ -166,13 +178,100 @@ sprites.splice(9, 1);
 
 const sceneEl = document.getElementById('scene');
 
+// === OVERLAY CANVAS for particles ===
+const overlay = document.createElement('canvas');
+overlay.width = SW; overlay.height = SH;
+overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50;image-rendering:pixelated;';
+sceneEl.appendChild(overlay);
+const ox = overlay.getContext('2d');
+
+// === Particle system ===
+const particles = [];
+
+// Steam from jianbing
+function spawnSteam() {
+  particles.push({ type:'steam', x:470+Math.random()*40, y:185, vx:(Math.random()-0.5)*0.3, vy:-0.5-Math.random()*0.3, life:60+Math.random()*40, maxLife:100, size:3+Math.random()*3 });
+}
+
+// Lantern glow particles (from hutong)
+function spawnLanternGlow() {
+  particles.push({ type:'glow', x:240+Math.random()*20, y:155+Math.random()*10, vx:(Math.random()-0.5)*0.2, vy:-0.2, life:40+Math.random()*30, maxLife:70, size:2+Math.random()*2 });
+  particles.push({ type:'glow', x:360+Math.random()*20, y:155+Math.random()*10, vx:(Math.random()-0.5)*0.2, vy:-0.2, life:40+Math.random()*30, maxLife:70, size:2+Math.random()*2 });
+}
+
+// Falling leaves from ginkgo
+function spawnLeaf() {
+  particles.push({ type:'leaf', x:990+Math.random()*100, y:100+Math.random()*30, vx:0.3+Math.random()*0.5, vy:0.5+Math.random()*0.5, life:200+Math.random()*100, maxLife:300, size:3+Math.random()*2, wobble: Math.random()*Math.PI*2 });
+}
+
+// Night fireflies
+function spawnFirefly() {
+  particles.push({ type:'firefly', x:Math.random()*SW, y:280+Math.random()*100, vx:(Math.random()-0.5)*0.5, vy:(Math.random()-0.5)*0.3, life:150+Math.random()*100, maxLife:250, size:2, phase: Math.random()*Math.PI*2 });
+}
+
+let particleTick = 0;
+function updateParticles() {
+  particleTick++;
+  
+  // Spawn
+  if (particleTick % 8 === 0) spawnSteam();
+  if (particleTick % 25 === 0) spawnLeaf();
+  if (isNight && particleTick % 15 === 0) spawnLanternGlow();
+  if (isNight && particleTick % 20 === 0) spawnFirefly();
+  
+  ox.clearRect(0, 0, SW, SH);
+  
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+    
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    
+    const alpha = Math.min(1, p.life / (p.maxLife * 0.3));
+    
+    if (p.type === 'steam') {
+      ox.fillStyle = `rgba(200,200,200,${alpha * 0.4})`;
+      ox.beginPath();
+      ox.arc(p.x, p.y, p.size, 0, Math.PI*2);
+      ox.fill();
+    } else if (p.type === 'glow') {
+      ox.fillStyle = `rgba(255,100,50,${alpha * 0.5})`;
+      ox.beginPath();
+      ox.arc(p.x, p.y, p.size, 0, Math.PI*2);
+      ox.fill();
+    } else if (p.type === 'leaf') {
+      p.wobble += 0.05;
+      p.vx = 0.3 + Math.sin(p.wobble) * 0.8;
+      ox.fillStyle = `rgba(140,200,60,${alpha * 0.7})`;
+      ox.fillRect(p.x, p.y, p.size, p.size * 0.6);
+    } else if (p.type === 'firefly') {
+      p.phase += 0.05;
+      const glow = 0.3 + 0.7 * Math.abs(Math.sin(p.phase));
+      ox.fillStyle = `rgba(255,255,100,${glow * alpha})`;
+      ox.beginPath();
+      ox.arc(p.x, p.y, p.size, 0, Math.PI*2);
+      ox.fill();
+      ox.fillStyle = `rgba(255,255,100,${glow * alpha * 0.3})`;
+      ox.beginPath();
+      ox.arc(p.x, p.y, p.size * 3, 0, Math.PI*2);
+      ox.fill();
+    }
+  }
+  
+  requestAnimationFrame(updateParticles);
+}
+updateParticles();
+
 sprites.forEach(s => {
   const div = document.createElement('div');
-  div.className = 'sprite';
+  div.className = 'sprite' + (s.anim ? ' ' + s.anim : '');
   div.style.left = s.x + 'px';
   div.style.top = s.y + 'px';
   div.style.width = s.w + 'px';
   div.style.height = s.h + 'px';
+  div.style.animationDelay = (Math.random() * 2).toFixed(1) + 's';
 
   const img = document.createElement('img');
   img.src = s.file;
