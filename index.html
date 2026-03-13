@@ -27,190 +27,208 @@ canvas.width = W * SCALE;
 canvas.height = H * SCALE;
 ctx.imageSmoothingEnabled = false;
 
-// Off-screen buffer at native res
 const buf = document.createElement('canvas');
 buf.width = W; buf.height = H;
 const bx = buf.getContext('2d');
 
-function px(x, y, color) {
-  bx.fillStyle = color;
-  bx.fillRect(x, y, 1, 1);
-}
+let frame = 0;
+let tick = 0;
 
-function rect(x, y, w, h, color) {
-  bx.fillStyle = color;
-  bx.fillRect(x, y, w, h);
-}
+function px(x, y, color) { bx.fillStyle = color; bx.fillRect(x, y, 1, 1); }
+function rect(x, y, w, h, color) { bx.fillStyle = color; bx.fillRect(x, y, w, h); }
 
-// --- Characters ---
 const characters = [];
-
-function addChar(name, query, x, y, drawFn) {
-  characters.push({ name, query, x, y, w: 0, h: 0, draw: drawFn });
+function addChar(name, query, x, y, w, h, drawFn) {
+  characters.push({ name, query, x, y, w, h, draw: drawFn });
 }
 
-// 1. Pyramid Head (Silent Hill)
-addChar('Pyramid Head', 'Silent Hill Pyramid Head', 30, 120, function(ox, oy) {
-  // body
+// 1. Pyramid Head — sways knife
+addChar('Pyramid Head', 'Silent Hill Pyramid Head', 30, 120, 26, 24, function(ox, oy, f) {
+  const sway = Math.sin(f * 0.05) * 2;
   rect(ox+2, oy+8, 8, 12, '#8B0000');
-  // pyramid head
   rect(ox, oy, 12, 8, '#C0392B');
   rect(ox+1, oy, 10, 2, '#A93226');
-  // legs
   rect(ox+3, oy+20, 3, 4, '#555');
   rect(ox+7, oy+20, 3, 4, '#555');
-  // great knife
-  rect(ox+12, oy+10, 14, 2, '#aaa');
-  rect(ox+12, oy+9, 2, 4, '#888');
-  this.w = 26; this.h = 24;
+  // knife sways
+  rect(ox+12, oy+10+sway, 14, 2, '#aaa');
+  rect(ox+12, oy+9+sway, 2, 4, '#888');
+  // drip blood
+  if (tick % 40 < 20) px(ox+24, oy+12+sway, '#8B0000');
 });
 
-// 2. Mario
-addChar('Mario', 'Super Mario gameplay', 80, 122, function(ox, oy) {
-  // hat
-  rect(ox+2, oy, 8, 3, '#E74C3C');
-  rect(ox+1, oy+2, 10, 2, '#E74C3C');
-  // face
-  rect(ox+2, oy+4, 8, 4, '#F5CBA7');
-  px(ox+3, oy+5, '#333'); px(ox+7, oy+5, '#333'); // eyes
-  rect(ox+4, oy+7, 4, 1, '#C0392B'); // mustache
-  // body
-  rect(ox+1, oy+8, 10, 6, '#E74C3C');
-  rect(ox+3, oy+9, 6, 4, '#3498DB'); // overalls
-  // legs
-  rect(ox+2, oy+14, 3, 4, '#3498DB');
-  rect(ox+7, oy+14, 3, 4, '#3498DB');
-  // shoes
-  rect(ox+1, oy+18, 4, 2, '#8B4513');
-  rect(ox+7, oy+18, 4, 2, '#8B4513');
-  this.w = 12; this.h = 20;
+// 2. Mario — bouncing
+addChar('Mario', 'Super Mario gameplay', 80, 122, 12, 20, function(ox, oy, f) {
+  const bounce = -Math.abs(Math.sin(f * 0.08)) * 4;
+  const by = oy + bounce;
+  rect(ox+2, by, 8, 3, '#E74C3C');
+  rect(ox+1, by+2, 10, 2, '#E74C3C');
+  rect(ox+2, by+4, 8, 4, '#F5CBA7');
+  px(ox+3, by+5, '#333'); px(ox+7, by+5, '#333');
+  rect(ox+4, by+7, 4, 1, '#C0392B');
+  rect(ox+1, by+8, 10, 6, '#E74C3C');
+  rect(ox+3, by+9, 6, 4, '#3498DB');
+  rect(ox+2, by+14, 3, 4, '#3498DB');
+  rect(ox+7, by+14, 3, 4, '#3498DB');
+  rect(ox+1, by+18, 4, 2, '#8B4513');
+  rect(ox+7, by+18, 4, 2, '#8B4513');
+  // coin above when jumping
+  if (bounce < -2) {
+    px(ox+5, by-4, '#F1C40F');
+    px(ox+6, by-4, '#F1C40F');
+    px(ox+5, by-3, '#F1C40F');
+    px(ox+6, by-3, '#F1C40F');
+  }
 });
 
-// 3. Pikachu
-addChar('Pikachu', 'Pikachu Pokemon', 140, 126, function(ox, oy) {
-  // body
+// 3. Pikachu — tail wag + cheek spark
+addChar('Pikachu', 'Pikachu Pokemon', 140, 126, 18, 18, function(ox, oy, f) {
   rect(ox+2, oy+4, 10, 8, '#F1C40F');
-  // head
   rect(ox+3, oy+0, 8, 6, '#F1C40F');
-  // ears
-  rect(ox+2, oy-4, 2, 5, '#F1C40F');
-  px(ox+2, oy-4, '#333');
-  rect(ox+10, oy-4, 2, 5, '#F1C40F');
-  px(ox+11, oy-4, '#333');
-  // eyes
+  rect(ox+2, oy-4, 2, 5, '#F1C40F'); px(ox+2, oy-4, '#333');
+  rect(ox+10, oy-4, 2, 5, '#F1C40F'); px(ox+11, oy-4, '#333');
   px(ox+5, oy+2, '#333'); px(ox+9, oy+2, '#333');
-  // cheeks
-  px(ox+3, oy+3, '#E74C3C'); px(ox+10, oy+3, '#E74C3C');
-  // tail
-  rect(ox+12, oy+2, 2, 2, '#F1C40F');
-  rect(ox+14, oy+0, 2, 3, '#F1C40F');
-  rect(ox+16, oy-1, 2, 2, '#F1C40F');
-  // feet
+  // cheek sparks
+  const spark = tick % 30 < 15;
+  px(ox+3, oy+3, spark ? '#FF0' : '#E74C3C');
+  px(ox+10, oy+3, spark ? '#FF0' : '#E74C3C');
+  if (spark) { px(ox+2, oy+2, '#FF0'); px(ox+11, oy+2, '#FF0'); }
+  // tail wag
+  const tw = Math.sin(f * 0.1) > 0 ? 0 : 1;
+  rect(ox+12, oy+2+tw, 2, 2, '#F1C40F');
+  rect(ox+14, oy+0+tw, 2, 3, '#F1C40F');
+  rect(ox+16, oy-1+tw, 2, 2, '#F1C40F');
   rect(ox+3, oy+12, 3, 2, '#F1C40F');
   rect(ox+8, oy+12, 3, 2, '#F1C40F');
-  this.w = 18; this.h = 18;
 });
 
-// 4. Among Us Crewmate
-addChar('Crewmate', 'Among Us', 200, 128, function(ox, oy) {
-  // body
+// 4. Among Us Crewmate — walking in place
+addChar('Crewmate', 'Among Us', 200, 128, 12, 15, function(ox, oy, f) {
   rect(ox+2, oy+2, 8, 10, '#E74C3C');
   rect(ox+1, oy+4, 10, 6, '#E74C3C');
-  // visor
   rect(ox+6, oy+3, 5, 4, '#85C1E9');
-  // backpack
   rect(ox, oy+4, 2, 5, '#C0392B');
-  // legs
-  rect(ox+2, oy+12, 3, 3, '#E74C3C');
-  rect(ox+7, oy+12, 3, 3, '#E74C3C');
-  this.w = 12; this.h = 15;
+  // legs alternate
+  const step = tick % 20 < 10;
+  if (step) {
+    rect(ox+2, oy+12, 3, 3, '#E74C3C');
+    rect(ox+8, oy+12, 3, 2, '#E74C3C');
+  } else {
+    rect(ox+2, oy+12, 3, 2, '#E74C3C');
+    rect(ox+7, oy+12, 3, 3, '#E74C3C');
+  }
+  // sus ? floating text
+  if (tick % 120 < 30) {
+    bx.fillStyle = '#fff';
+    bx.font = '4px monospace';
+    bx.fillText('sus?', ox+1, oy-2);
+  }
 });
 
-// 5. Pac-Man
-addChar('Pac-Man', 'Pac-Man game', 250, 130, function(ox, oy) {
+// 5. Pac-Man — mouth open/close + ghost moves
+addChar('Pac-Man', 'Pac-Man game', 250, 130, 12, 12, function(ox, oy, f) {
+  const open = tick % 16 < 8;
   rect(ox+2, oy, 8, 2, '#F1C40F');
   rect(ox+1, oy+2, 10, 2, '#F1C40F');
   rect(ox, oy+4, 12, 4, '#F1C40F');
   rect(ox+1, oy+8, 10, 2, '#F1C40F');
   rect(ox+2, oy+10, 8, 2, '#F1C40F');
-  // mouth
-  rect(ox+8, oy+4, 4, 2, '#1a1a2e');
-  rect(ox+10, oy+3, 2, 1, '#1a1a2e');
-  rect(ox+10, oy+7, 2, 1, '#1a1a2e');
-  // eye
+  if (open) {
+    rect(ox+8, oy+4, 4, 2, '#1a1a2e');
+    rect(ox+10, oy+3, 2, 1, '#1a1a2e');
+    rect(ox+10, oy+7, 2, 1, '#1a1a2e');
+  }
   px(ox+4, oy+2, '#333');
-  // ghost nearby
-  rect(ox+18, oy+1, 8, 9, '#E67E22');
-  rect(ox+19, oy, 6, 1, '#E67E22');
-  rect(ox+18, oy+10, 2, 2, '#E67E22');
-  rect(ox+21, oy+10, 2, 2, '#E67E22');
-  rect(ox+24, oy+10, 2, 2, '#E67E22');
-  px(ox+20, oy+3, '#fff'); px(ox+24, oy+3, '#fff');
-  px(ox+21, oy+4, '#33f'); px(ox+25, oy+4, '#33f');
-  this.w = 12; this.h = 12;
+  // dots
+  for (let d = 0; d < 3; d++) {
+    const dx = ox + 14 + d * 4;
+    if ((tick + d * 8) % 32 < 24) px(dx, oy+5, '#F1C40F');
+  }
+  // ghost bounces
+  const gb = Math.sin(f * 0.08) * 1.5;
+  const gx = ox + 18; const gy = oy + 1 + gb;
+  rect(gx, gy, 8, 9, '#E67E22');
+  rect(gx+1, gy-1, 6, 1, '#E67E22');
+  rect(gx, gy+9, 2, 2, '#E67E22');
+  rect(gx+3, gy+9, 2, 2, '#E67E22');
+  rect(gx+6, gy+9, 2, 2, '#E67E22');
+  px(gx+2, gy+2, '#fff'); px(gx+5, gy+2, '#fff');
+  const look = tick % 40 < 20 ? 0 : 1;
+  px(gx+2+look, gy+3, '#33f'); px(gx+5+look, gy+3, '#33f');
 });
 
-// 6. Creeper (Minecraft)
-addChar('Creeper', 'Minecraft Creeper', 170, 118, function(ox, oy) {
-  // head
-  rect(ox, oy, 12, 12, '#4CAF50');
-  rect(ox+1, oy+1, 10, 10, '#66BB6A');
+// 6. Creeper — blinks + hisses (flashes)
+addChar('Creeper', 'Minecraft Creeper', 170, 118, 12, 24, function(ox, oy, f) {
+  const hiss = tick % 180 < 10;
+  const bodyColor = hiss ? '#fff' : '#4CAF50';
+  const bodyLight = hiss ? '#fff' : '#66BB6A';
+  rect(ox, oy, 12, 12, bodyColor);
+  rect(ox+1, oy+1, 10, 10, bodyLight);
   // face
-  px(ox+3, oy+3, '#1B5E20'); px(ox+4, oy+3, '#1B5E20');
-  px(ox+7, oy+3, '#1B5E20'); px(ox+8, oy+3, '#1B5E20');
-  px(ox+3, oy+4, '#1B5E20'); px(ox+8, oy+4, '#1B5E20');
-  rect(ox+5, oy+5, 2, 2, '#1B5E20');
-  rect(ox+4, oy+7, 4, 2, '#1B5E20');
-  rect(ox+3, oy+8, 2, 2, '#1B5E20');
-  rect(ox+7, oy+8, 2, 2, '#1B5E20');
+  const fc = hiss ? '#aaa' : '#1B5E20';
+  px(ox+3, oy+3, fc); px(ox+4, oy+3, fc);
+  px(ox+7, oy+3, fc); px(ox+8, oy+3, fc);
+  px(ox+3, oy+4, fc); px(ox+8, oy+4, fc);
+  rect(ox+5, oy+5, 2, 2, fc);
+  rect(ox+4, oy+7, 4, 2, fc);
+  rect(ox+3, oy+8, 2, 2, fc);
+  rect(ox+7, oy+8, 2, 2, fc);
   // body
-  rect(ox+2, oy+12, 8, 8, '#4CAF50');
-  // legs
-  rect(ox+2, oy+20, 3, 4, '#388E3C');
-  rect(ox+7, oy+20, 3, 4, '#388E3C');
-  this.w = 12; this.h = 24;
+  rect(ox+2, oy+12, 8, 8, bodyColor);
+  // legs shuffle
+  const step = tick % 24 < 12;
+  rect(ox+2, oy+20, 3, step ? 4 : 3, '#388E3C');
+  rect(ox+7, oy+20, 3, step ? 3 : 4, '#388E3C');
+  // hiss text
+  if (hiss) {
+    bx.fillStyle = '#0f0';
+    bx.font = '4px monospace';
+    bx.fillText('sss!', ox, oy-3);
+  }
 });
 
 // --- Scene ---
 function drawScene() {
-  // sky
+  bx.clearRect(0, 0, W, H);
+  // sky gradient
   rect(0, 0, W, 80, '#16213E');
-  // stars
-  const stars = [[10,10],[50,25],[90,15],[150,30],[200,8],[260,20],[300,12],[45,50],[180,55],[280,45]];
-  stars.forEach(([sx,sy]) => px(sx, sy, '#fff'));
+  // twinkling stars
+  const stars = [[10,10],[50,25],[90,15],[150,30],[200,8],[260,20],[300,12],[45,50],[180,55],[280,45],[130,18],[70,40],[220,35],[310,50]];
+  stars.forEach(([sx,sy], i) => {
+    if ((tick + i * 7) % 60 < 50) px(sx, sy, '#fff');
+    else px(sx, sy, '#888');
+  });
 
-  // building bg
+  // building
   rect(0, 60, W, 10, '#2C3E50');
   rect(0, 70, W, 130, '#1C2833');
-  
-  // floor lines
-  for (let i = 0; i < W; i += 20) {
-    rect(i, 70, 1, 130, '#2C3E50');
-  }
+  for (let i = 0; i < W; i += 20) rect(i, 70, 1, 130, '#2C3E50');
   rect(0, 145, W, 1, '#2C3E50');
   rect(0, 100, W, 1, '#2C3E50');
-  
-  // windows
+
+  // windows — some flicker
   for (let wx = 10; wx < W; wx += 40) {
-    rect(wx, 75, 12, 15, '#F39C12');
+    const flicker = ((tick + wx) % 200 < 10) ? '#E8B810' : '#F39C12';
+    rect(wx, 75, 12, 15, flicker);
     rect(wx+1, 76, 10, 13, '#F7DC6F');
-    // window cross
-    rect(wx+5, 76, 2, 13, '#F39C12');
-    rect(wx+1, 82, 10, 1, '#F39C12');
+    rect(wx+5, 76, 2, 13, flicker);
+    rect(wx+1, 82, 10, 1, flicker);
   }
 
-  // floor / ground
+  // floor
   rect(0, 148, W, 52, '#34495E');
-  for (let fx = 0; fx < W; fx += 16) {
-    rect(fx, 148, 1, 52, '#2C3E50');
-  }
-  for (let fy = 148; fy < 200; fy += 8) {
-    rect(0, fy, W, 1, '#2C3E50');
-  }
+  for (let fx = 0; fx < W; fx += 16) rect(fx, 148, 1, 52, '#2C3E50');
+  for (let fy = 148; fy < 200; fy += 8) rect(0, fy, W, 1, '#2C3E50');
 
-  // pipes
+  // pipes — steam
   rect(120, 135, 6, 13, '#7F8C8D');
   rect(118, 133, 10, 4, '#95A5A6');
+  if (tick % 60 < 30) {
+    const sy = 130 - (tick % 30) * 0.3;
+    px(122, sy, '#ccc');
+    px(123, sy-1, '#aaa');
+    px(121, sy-2, '#888');
+  }
 
   // crates
   rect(215, 138, 10, 10, '#8B6914');
@@ -218,30 +236,37 @@ function drawScene() {
   rect(220, 139, 1, 8, '#8B6914');
   rect(216, 143, 8, 1, '#8B6914');
 
-  // Draw characters
-  characters.forEach(c => c.draw(c.x, c.y));
+  // characters
+  characters.forEach(c => c.draw(c.x, c.y, frame));
+
+  // render
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(buf, 0, 0, W, H, 0, 0, W * SCALE, H * SCALE);
 }
 
-drawScene();
-
-// Scale up
-ctx.drawImage(buf, 0, 0, W, H, 0, 0, W * SCALE, H * SCALE);
+function loop() {
+  frame++;
+  tick++;
+  drawScene();
+  requestAnimationFrame(loop);
+}
+loop();
 
 // --- Interaction ---
 const tooltip = document.getElementById('tooltip');
 
-canvas.addEventListener('mousemove', (e) => {
-  const rect2 = canvas.getBoundingClientRect();
-  const mx = (e.clientX - rect2.left) / SCALE;
-  const my = (e.clientY - rect2.top) / SCALE;
-
-  let hit = null;
+function getHit(e) {
+  const r = canvas.getBoundingClientRect();
+  const mx = (e.clientX - r.left) / SCALE;
+  const my = (e.clientY - r.top) / SCALE;
   for (const c of characters) {
-    if (mx >= c.x && mx <= c.x + c.w && my >= c.y && my <= c.y + c.h) {
-      hit = c; break;
-    }
+    if (mx >= c.x && mx <= c.x + c.w && my >= c.y - 5 && my <= c.y + c.h) return c;
   }
+  return null;
+}
 
+canvas.addEventListener('mousemove', (e) => {
+  const hit = getHit(e);
   if (hit) {
     canvas.style.cursor = 'pointer';
     tooltip.style.display = 'block';
@@ -255,23 +280,30 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('click', (e) => {
-  const rect2 = canvas.getBoundingClientRect();
-  const mx = (e.clientX - rect2.left) / SCALE;
-  const my = (e.clientY - rect2.top) / SCALE;
+  const hit = getHit(e);
+  if (hit) {
+    const q = encodeURIComponent(hit.query);
+    window.open('https://www.bing.com/videos/search?q=' + q, '_blank');
+  }
+});
 
+// Touch support for mobile
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  const touch = e.changedTouches[0];
+  const r = canvas.getBoundingClientRect();
+  const mx = (touch.clientX - r.left) / SCALE;
+  const my = (touch.clientY - r.top) / SCALE;
   for (const c of characters) {
-    if (mx >= c.x && mx <= c.x + c.w && my >= c.y && my <= c.y + c.h) {
-      // Try Bing video search first
+    if (mx >= c.x && mx <= c.x + c.w && my >= c.y - 5 && my <= c.y + c.h) {
       const q = encodeURIComponent(c.query);
-      window.open(`https://www.bing.com/videos/search?q=${q}`, '_blank');
+      window.open('https://www.bing.com/videos/search?q=' + q, '_blank');
       return;
     }
   }
 });
 
-canvas.addEventListener('mouseleave', () => {
-  tooltip.style.display = 'none';
-});
+canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
 </script>
 </body>
 </html>
