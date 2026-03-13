@@ -6,434 +6,255 @@
 <title>Pixel Floor — 北京</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: monospace; }
+  body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: monospace; overflow-x: hidden; }
   h1 { color: #e0e0e0; margin-bottom: 8px; font-size: 14px; letter-spacing: 2px; }
-  p.hint { color: #888; font-size: 11px; margin-bottom: 12px; }
-  p.info { color: #666; font-size: 10px; margin-bottom: 8px; }
-  canvas { border: 2px solid #333; cursor: crosshair; image-rendering: pixelated; }
-  .tooltip { position: fixed; background: #222; color: #0f0; padding: 4px 10px; font-family: monospace; font-size: 12px; pointer-events: none; display: none; border: 1px solid #0f0; z-index: 10; }
+  p.hint { color: #888; font-size: 11px; margin-bottom: 8px; }
+  p.info { color: #666; font-size: 10px; margin-bottom: 12px; }
+  .scene { position: relative; width: 1200px; height: 600px; background: #1a1a2e; overflow: hidden; border: 2px solid #333; image-rendering: pixelated; }
+  .scene canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+  .sprite { position: absolute; cursor: pointer; image-rendering: pixelated; transition: transform 0.1s; }
+  .sprite:hover { transform: scale(1.08); z-index: 10; }
+  .sprite img { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+  .sprite .label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); background: #222; color: #0f0; padding: 2px 6px; font-size: 10px; font-family: monospace; white-space: nowrap; border: 1px solid #0f0; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  .sprite:hover .label { opacity: 1; }
+  .tooltip { position: fixed; background: #222; color: #0f0; padding: 4px 10px; font-family: monospace; font-size: 12px; pointer-events: none; display: none; border: 1px solid #0f0; z-index: 100; }
+  @media (max-width: 1200px) {
+    .scene { width: 100vw; height: 50vw; }
+  }
 </style>
 </head>
 <body>
 <h1>▓ PIXEL FLOOR · 北京 ▓</h1>
 <p class="hint">点击探索 → Bing 搜索</p>
 <p class="info" id="timeinfo"></p>
-<canvas id="scene"></canvas>
-<div class="tooltip" id="tooltip"></div>
+
+<div class="scene" id="scene">
+  <canvas id="bg"></canvas>
+</div>
+
 <script>
-const SCALE = 3;
-const W = 400, H = 240;
-const canvas = document.getElementById('scene');
-const ctx = canvas.getContext('2d');
-canvas.width = W * SCALE;
-canvas.height = H * SCALE;
-ctx.imageSmoothingEnabled = false;
-
-const buf = document.createElement('canvas');
-buf.width = W; buf.height = H;
-const bx = buf.getContext('2d');
-
-let frame = 0, tick = 0;
-
-// Time of day
+// === TIME OF DAY ===
 const hour = new Date().getHours();
 const isNight = hour >= 20 || hour < 6;
 const isDusk = hour >= 17 && hour < 20;
 const isMorning = hour >= 6 && hour < 9;
+const timeStr = isNight ? '🌙 夜晚' : isDusk ? '🌅 黄昏' : isMorning ? '🌤 清晨' : '☀️ 白天';
+document.getElementById('timeinfo').textContent = `${timeStr} · ${hour}:00`;
+
+const ambientLight = isNight ? 0.35 : isDusk ? 0.65 : 1.0;
+
+// === BACKGROUND CANVAS ===
+const bgCanvas = document.getElementById('bg');
+const scene = document.getElementById('scene');
+const SW = 1200, SH = 600;
+bgCanvas.width = SW;
+bgCanvas.height = SH;
+const bx = bgCanvas.getContext('2d');
 
 const skyTop = isNight ? '#0a0a1a' : isDusk ? '#2d1b4e' : isMorning ? '#4a6fa5' : '#5b8fc9';
 const skyBot = isNight ? '#111133' : isDusk ? '#c0543b' : isMorning ? '#c9a96e' : '#87CEEB';
-const groundColor = isNight ? '#2a2a2a' : '#555';
-const ambientLight = isNight ? 0.4 : isDusk ? 0.7 : 1.0;
 
-const timeStr = isNight ? '夜晚' : isDusk ? '黄昏' : isMorning ? '清晨' : '白天';
-document.getElementById('timeinfo').textContent = `当前：${timeStr} (${hour}:00)`;
+function drawBackground() {
+  // sky gradient
+  const grad = bx.createLinearGradient(0, 0, 0, 280);
+  grad.addColorStop(0, skyTop);
+  grad.addColorStop(1, skyBot);
+  bx.fillStyle = grad;
+  bx.fillRect(0, 0, SW, 280);
 
-function px(x, y, c) { bx.fillStyle = c; bx.fillRect(x, y, 1, 1); }
-function rect(x, y, w, h, c) { bx.fillStyle = c; bx.fillRect(x, y, w, h); }
-
-// Dim color for night
-function dim(hex, amt) {
-  if (amt >= 1) return hex;
-  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-  r = Math.floor(r * amt); g = Math.floor(g * amt); b = Math.floor(b * amt);
-  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
-}
-
-const characters = [];
-function addChar(name, query, x, y, w, h, drawFn) {
-  characters.push({ name, query, x, y, w, h, draw: drawFn });
-}
-
-// === BACKGROUND ELEMENTS ===
-
-function drawSky() {
-  // gradient sky
-  for (let y = 0; y < 80; y++) {
-    const t = y / 80;
-    const r1 = parseInt(skyTop.slice(1,3),16), g1 = parseInt(skyTop.slice(3,5),16), b1 = parseInt(skyTop.slice(5,7),16);
-    const r2 = parseInt(skyBot.slice(1,3),16), g2 = parseInt(skyBot.slice(3,5),16), b2 = parseInt(skyBot.slice(5,7),16);
-    const r = Math.floor(r1 + (r2-r1)*t), g = Math.floor(g1 + (g2-g1)*t), b = Math.floor(b1 + (b2-b1)*t);
-    rect(0, y, W, 1, `rgb(${r},${g},${b})`);
-  }
   // stars at night
   if (isNight) {
-    const stars = [[20,8],[60,20],[100,12],[180,25],[250,10],[320,18],[360,30],[150,5],[280,8],[50,35]];
-    stars.forEach(([sx,sy],i) => {
-      if ((tick+i*7) % 50 < 42) px(sx, sy, '#fff');
+    bx.fillStyle = '#fff';
+    [[30,20],[90,50],[180,30],[300,60],[420,15],[540,40],[660,25],[780,55],[900,20],[1020,35],[1100,50],[150,70],[500,10],[850,65]].forEach(([x,y]) => {
+      bx.fillRect(x, y, 2, 2);
     });
+    // moon
+    bx.fillStyle = '#F5E6CA';
+    bx.beginPath(); bx.arc(1050, 60, 25, 0, Math.PI*2); bx.fill();
+    bx.fillStyle = '#0a0a1a';
+    bx.beginPath(); bx.arc(1040, 55, 22, 0, Math.PI*2); bx.fill();
   }
-  // moon at night
-  if (isNight) {
-    rect(340, 10, 10, 10, '#F5E6CA');
-    rect(341, 9, 8, 1, '#F5E6CA');
-    rect(339, 11, 1, 8, '#F5E6CA');
-    rect(343, 11, 4, 3, '#E8D5B0');
-  }
-  // sun during day
-  if (!isNight && !isDusk) {
-    rect(330, 15, 8, 8, '#F1C40F');
-    rect(331, 14, 6, 1, '#F1C40F');
-    rect(331, 23, 6, 1, '#F1C40F');
-    if (tick % 20 < 10) { px(328, 19, '#F1C40F'); px(339, 19, '#F1C40F'); }
-  }
-  // dusk sun
-  if (isDusk) {
-    rect(340, 55, 12, 6, '#E74C3C');
-    rect(342, 54, 8, 1, '#E67E22');
-  }
-}
 
-function drawBuildings() {
+  // sun
+  if (!isNight && !isDusk) {
+    bx.fillStyle = '#F1C40F';
+    bx.beginPath(); bx.arc(1020, 70, 20, 0, Math.PI*2); bx.fill();
+    bx.fillStyle = 'rgba(241,196,15,0.2)';
+    bx.beginPath(); bx.arc(1020, 70, 35, 0, Math.PI*2); bx.fill();
+  }
+
   // far buildings silhouette
-  const bldgs = [[0,50,25,30],[30,45,20,35],[55,52,30,28],[90,40,20,40],[115,48,25,32],[145,42,30,38],[180,50,25,30],[210,38,22,42],[240,46,28,34],[275,42,20,38],[300,50,30,30],[335,44,25,36],[365,50,35,30]];
-  bldgs.forEach(([bx2,by,bw,bh]) => {
-    rect(bx2, by, bw, bh, dim('#2C3E50', ambientLight * 0.6));
+  const buildingColor = isNight ? '#151528' : isDusk ? '#3a2040' : '#8a9aaa';
+  bx.fillStyle = buildingColor;
+  const buildings = [
+    [0,120,60,160],[70,100,50,180],[130,130,70,150],[210,90,45,190],
+    [260,110,55,170],[325,95,65,185],[400,125,50,155],[460,105,60,175],
+    [530,115,45,165],[585,85,70,195],[665,120,55,160],[730,100,50,180],
+    [790,130,65,150],[865,95,55,185],[930,110,60,170],[1000,120,70,160],
+    [1080,100,55,180],[1145,115,55,165]
+  ];
+  buildings.forEach(([x,y,w,h]) => {
+    bx.fillRect(x, y, w, h);
     // windows
-    for (let wy = by+4; wy < by+bh-4; wy += 6) {
-      for (let wx = bx2+3; wx < bx2+bw-3; wx += 5) {
-        if (isNight && Math.random() > 0.4) {
-          px(wx, wy, '#F7DC6F'); px(wx+1, wy, '#F7DC6F');
-          px(wx, wy+1, '#F39C12'); px(wx+1, wy+1, '#F39C12');
-        } else if (!isNight) {
-          px(wx, wy, dim('#85C1E9', ambientLight)); px(wx+1, wy, dim('#85C1E9', ambientLight));
-        }
+    bx.fillStyle = isNight ? 'rgba(247,220,111,0.6)' : 'rgba(135,193,233,0.3)';
+    for (let wy = y+10; wy < y+h-20; wy += 18) {
+      for (let wx = x+6; wx < x+w-6; wx += 12) {
+        if (isNight && Math.random() > 0.35) bx.fillRect(wx, wy, 6, 8);
+        else if (!isNight) bx.fillRect(wx, wy, 6, 8);
       }
     }
+    bx.fillStyle = buildingColor;
   });
-}
 
-function drawGround() {
-  // main road
-  rect(0, 170, W, 70, dim('#555', ambientLight));
+  // ground layers
   // sidewalk
-  rect(0, 165, W, 8, dim('#888', ambientLight));
-  // road lines
-  for (let lx = (tick % 20) * -1; lx < W; lx += 20) {
-    rect(lx, 200, 8, 2, dim('#F1C40F', ambientLight * 0.8));
-  }
+  bx.fillStyle = isNight ? '#2a2a2a' : isDusk ? '#8a7a6a' : '#c0b8a8';
+  bx.fillRect(0, 380, SW, 40);
   // sidewalk tiles
-  for (let tx = 0; tx < W; tx += 12) {
-    rect(tx, 165, 1, 8, dim('#777', ambientLight));
+  bx.strokeStyle = isNight ? '#222' : '#b0a898';
+  for (let tx = 0; tx < SW; tx += 30) {
+    bx.beginPath(); bx.moveTo(tx, 380); bx.lineTo(tx, 420); bx.stroke();
   }
-}
 
-// === CLICKABLE ELEMENTS ===
+  // road
+  bx.fillStyle = isNight ? '#1a1a1a' : isDusk ? '#4a4a4a' : '#555';
+  bx.fillRect(0, 420, SW, 180);
+  
+  // road center line
+  bx.fillStyle = isNight ? '#553' : '#F1C40F';
+  for (let lx = 0; lx < SW; lx += 50) {
+    bx.fillRect(lx, 505, 25, 4);
+  }
 
-// 1. 故宫角楼 (far background)
-addChar('故宫角楼', '北京故宫角楼 摄影', 160, 55, 40, 30, function(ox, oy, f) {
-  // base
-  rect(ox+5, oy+15, 30, 15, dim('#8B4513', ambientLight));
-  rect(ox+8, oy+12, 24, 5, dim('#A0522D', ambientLight));
-  // roof layers
-  rect(ox+3, oy+8, 34, 5, dim('#C0392B', ambientLight));
-  rect(ox+6, oy+5, 28, 4, dim('#E74C3C', ambientLight));
-  rect(ox+10, oy+2, 20, 4, dim('#C0392B', ambientLight));
-  rect(ox+14, oy, 12, 3, dim('#E74C3C', ambientLight));
-  // tip
-  rect(ox+19, oy-2, 2, 3, dim('#F1C40F', ambientLight));
-  // windows glow at night
+  // road edge lines
+  bx.fillStyle = '#fff';
+  bx.globalAlpha = isNight ? 0.3 : 0.5;
+  bx.fillRect(0, 425, SW, 2);
+  bx.fillRect(0, 595, SW, 3);
+  bx.globalAlpha = 1;
+
+  // some puddles if night (wet road feel)
   if (isNight) {
-    rect(ox+12, oy+18, 4, 4, '#F39C12');
-    rect(ox+20, oy+18, 4, 4, '#F39C12');
-    rect(ox+28, oy+18, 4, 4, '#F39C12');
+    bx.fillStyle = 'rgba(100,100,200,0.08)';
+    bx.fillRect(200, 440, 80, 30);
+    bx.fillRect(600, 460, 60, 25);
+    bx.fillRect(900, 450, 70, 20);
   }
-});
+}
 
-// 2. 胡同门楼 + 红灯笼
-addChar('胡同', '北京胡同 旅游攻略', 10, 95, 50, 70, function(ox, oy, f) {
-  // wall
-  rect(ox, oy+15, 50, 55, dim('#8B8378', ambientLight));
-  rect(ox, oy+15, 50, 2, dim('#696156', ambientLight));
-  // gate
-  rect(ox+15, oy+35, 20, 35, dim('#5C3317', ambientLight));
-  rect(ox+16, oy+36, 18, 33, dim('#6B3A20', ambientLight));
-  rect(ox+24, oy+50, 2, 2, '#F1C40F'); // door handle
-  // roof
-  rect(ox-2, oy+10, 54, 7, dim('#555', ambientLight));
-  rect(ox, oy+8, 50, 4, dim('#666', ambientLight));
-  // 红灯笼 — swaying
-  const sw = Math.sin(f * 0.04) * 1;
-  drawLantern(ox+8+sw, oy+12);
-  drawLantern(ox+38+sw, oy+12);
-  // 门牌
-  rect(ox+20, oy+30, 10, 5, dim('#C0392B', ambientLight));
-});
+drawBackground();
 
-function drawLantern(lx, ly) {
-  rect(lx, ly, 1, 3, '#888');
-  rect(lx-2, ly+3, 5, 7, '#E74C3C');
-  rect(lx-1, ly+4, 3, 5, '#C0392B');
-  rect(lx-1, ly+10, 3, 2, '#F1C40F');
-  // glow at night
+// === SPRITES ===
+const sprites = [
+  { name: '故宫角楼', file: 'sprites/gugong.jpg', query: '北京故宫角楼 摄影', x: 20, y: 100, w: 180, h: 180 },
+  { name: '胡同门楼', file: 'sprites/hutong.jpg', query: '北京胡同 旅游攻略', x: 220, y: 140, w: 170, h: 170 },
+  { name: '煎饼摊', file: 'sprites/jianbing.jpg', query: '北京煎饼果子 推荐', x: 410, y: 180, w: 140, h: 140 },
+  { name: '奶茶店', file: 'sprites/milktea.jpg', query: '北京奶茶店 排行榜', x: 570, y: 130, w: 180, h: 180 },
+  { name: '便利店', file: 'sprites/milktea.jpg', query: '北京便利店 24小时', x: 770, y: 130, w: 180, h: 180 },
+  { name: '银杏树', file: 'sprites/ginkgo.jpg', query: '北京银杏大道 最佳时间', x: 970, y: 80, w: 130, h: 240 },
+  { name: '共享单车', file: 'sprites/bike.jpg', query: '北京共享单车', x: 400, y: 370, w: 80, h: 50 },
+  { name: '邮筒', file: 'sprites/mailbox.jpg', query: '中国邮政 明信片', x: 760, y: 330, w: 55, h: 70 },
+  { name: '胡同猫', file: 'sprites/cat.jpg', query: '北京胡同猫 纪录片', x: 195, y: 340, w: 60, h: 65 },
+  { name: '煎饼摊', file: 'sprites/jianbing.jpg', query: '北京煎饼果子', x: 410, y: 180, w: 140, h: 140 },
+];
+
+// Remove duplicate jianbing
+sprites.splice(9, 1);
+
+// Fix: use unique convenience store sprite (reuse milktea for now, noted)
+// TODO: generate dedicated convenience store sprite
+
+const sceneEl = document.getElementById('scene');
+
+sprites.forEach(s => {
+  const div = document.createElement('div');
+  div.className = 'sprite';
+  div.style.left = s.x + 'px';
+  div.style.top = s.y + 'px';
+  div.style.width = s.w + 'px';
+  div.style.height = s.h + 'px';
+
+  const img = document.createElement('img');
+  img.src = s.file;
+  img.alt = s.name;
+  img.draggable = false;
+  
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.textContent = '🔍 ' + s.name;
+
+  div.appendChild(img);
+  div.appendChild(label);
+
+  div.addEventListener('click', () => {
+    window.open('https://www.bing.com/videos/search?q=' + encodeURIComponent(s.query), '_blank');
+  });
+
+  // Night dimming
   if (isNight) {
-    rect(lx-3, ly+2, 7, 9, 'rgba(255,100,50,0.15)');
+    img.style.filter = 'brightness(0.5)';
+    // Glow for shops
+    if (['奶茶店','便利店','煎饼摊'].includes(s.name)) {
+      img.style.filter = 'brightness(0.7)';
+      div.style.boxShadow = '0 0 20px rgba(255,200,100,0.3)';
+    }
+  } else if (isDusk) {
+    img.style.filter = 'brightness(0.75) sepia(0.2)';
   }
+
+  sceneEl.appendChild(div);
+});
+
+// === TAXI ANIMATION ===
+const taxiDiv = document.createElement('div');
+taxiDiv.className = 'sprite';
+taxiDiv.style.top = '460px';
+taxiDiv.style.width = '120px';
+taxiDiv.style.height = '60px';
+taxiDiv.style.cursor = 'pointer';
+const taxiImg = document.createElement('img');
+taxiImg.src = 'sprites/taxi.jpg';
+taxiImg.alt = '出租车';
+taxiImg.draggable = false;
+if (isNight) { taxiImg.style.filter = 'brightness(0.6)'; taxiDiv.style.boxShadow = '0 0 10px rgba(255,200,100,0.2)'; }
+const taxiLabel = document.createElement('div');
+taxiLabel.className = 'label';
+taxiLabel.textContent = '🔍 北京出租车';
+taxiDiv.appendChild(taxiImg);
+taxiDiv.appendChild(taxiLabel);
+taxiDiv.addEventListener('click', () => {
+  window.open('https://www.bing.com/videos/search?q=' + encodeURIComponent('北京出租车'), '_blank');
+});
+sceneEl.appendChild(taxiDiv);
+
+let taxiX = -150;
+function animateTaxi() {
+  taxiX += 0.8;
+  if (taxiX > SW + 50) taxiX = -150;
+  taxiDiv.style.left = taxiX + 'px';
+  requestAnimationFrame(animateTaxi);
 }
+animateTaxi();
 
-// 3. 煎饼摊
-addChar('煎饼摊', '北京煎饼果子 推荐', 70, 130, 35, 35, function(ox, oy, f) {
-  // cart
-  rect(ox, oy+15, 30, 20, dim('#8B6914', ambientLight));
-  rect(ox+2, oy+17, 26, 16, dim('#A07828', ambientLight));
-  // wheels
-  rect(ox+3, oy+34, 4, 4, '#333'); rect(ox+23, oy+34, 4, 4, '#333');
-  // umbrella
-  rect(ox+5, oy, 20, 3, '#E74C3C');
-  rect(ox+14, oy+3, 2, 12, '#888');
-  // steam animation
-  if (tick % 8 < 4) {
-    px(ox+10, oy+14, '#ccc'); px(ox+12, oy+13, '#aaa'); px(ox+14, oy+12, '#888');
-  } else {
-    px(ox+11, oy+13, '#ccc'); px(ox+13, oy+12, '#aaa'); px(ox+15, oy+14, '#888');
+// === TWINKLING STARS ON CANVAS ===
+if (isNight) {
+  let starTick = 0;
+  function twinkle() {
+    starTick++;
+    // redraw a few stars with varying alpha
+    bx.fillStyle = '#0a0a1a';
+    [[30,20],[180,30],[540,40],[900,20]].forEach(([x,y]) => {
+      bx.fillRect(x-1, y-1, 4, 4);
+    });
+    [[30,20],[180,30],[540,40],[900,20]].forEach(([x,y],i) => {
+      const a = 0.4 + 0.6 * Math.abs(Math.sin(starTick * 0.03 + i * 1.5));
+      bx.fillStyle = `rgba(255,255,255,${a})`;
+      bx.fillRect(x, y, 2, 2);
+    });
+    requestAnimationFrame(twinkle);
   }
-  // griddle
-  rect(ox+5, oy+18, 14, 2, '#666');
-  rect(ox+6, oy+18, 12, 1, '#F1C40F'); // pancake!
-  // vendor
-  rect(ox+25, oy+10, 6, 8, dim('#fff', ambientLight));
-  rect(ox+26, oy+6, 4, 4, dim('#F5CBA7', ambientLight));
-  rect(ox+27, oy+4, 2, 2, '#fff'); // hat
-});
-
-// 4. 共享单车
-addChar('共享单车', '北京共享单车', 115, 155, 20, 18, function(ox, oy, f) {
-  // frame
-  rect(ox+4, oy+4, 10, 2, '#3498DB');
-  rect(ox+4, oy+4, 2, 8, '#3498DB');
-  rect(ox+12, oy+4, 2, 8, '#3498DB');
-  rect(ox+6, oy+2, 6, 2, '#3498DB');
-  // wheels
-  rect(ox+1, oy+12, 6, 6, '#333');
-  rect(ox+2, oy+13, 4, 4, '#888');
-  rect(ox+11, oy+12, 6, 6, '#333');
-  rect(ox+12, oy+13, 4, 4, '#888');
-  // seat
-  rect(ox+5, oy+1, 4, 2, '#222');
-  // basket
-  rect(ox+12, oy, 5, 4, '#3498DB');
-});
-
-// 5. 奶茶店
-addChar('奶茶店', '北京奶茶店 排行榜', 140, 110, 45, 55, function(ox, oy, f) {
-  // building
-  rect(ox, oy+10, 45, 45, dim('#F5E6CA', ambientLight));
-  // window/door
-  rect(ox+5, oy+25, 15, 30, dim('#87CEEB', ambientLight * 0.7));
-  rect(ox+25, oy+25, 15, 30, dim('#87CEEB', ambientLight * 0.7));
-  // sign
-  rect(ox+2, oy+12, 41, 10, '#4CAF50');
-  // sign text dots (代表文字)
-  for (let sx = ox+8; sx < ox+38; sx += 4) {
-    rect(sx, oy+15, 2, 4, '#fff');
-  }
-  // awning
-  for (let ax = ox; ax < ox+45; ax += 6) {
-    rect(ax, oy+8, 3, 5, '#E74C3C');
-    rect(ax+3, oy+8, 3, 5, '#fff');
-  }
-  // light glow at night
-  if (isNight) {
-    rect(ox-2, oy+22, 49, 2, 'rgba(255,200,100,0.3)');
-    rect(ox+6, oy+26, 13, 28, '#F7DC6F');
-    rect(ox+26, oy+26, 13, 28, '#F7DC6F');
-  }
-  // person with boba tea
-  if (tick % 120 < 80) {
-    const px2 = ox + 20;
-    rect(px2, oy+42, 4, 6, dim('#E74C3C', ambientLight));
-    rect(px2+1, oy+39, 2, 3, dim('#F5CBA7', ambientLight));
-    rect(px2+4, oy+43, 2, 3, dim('#8B4513', ambientLight)); // boba cup
-  }
-});
-
-// 6. 出租车
-addChar('北京出租车', '北京出租车', 220, 185, 30, 16, function(ox, oy, f) {
-  const moving = Math.floor(tick * 0.3) % W;
-  const mx = (ox + moving) % (W + 40) - 20;
-  // body
-  rect(mx, oy, 28, 10, dim('#F1C40F', ambientLight));
-  rect(mx+2, oy-3, 20, 4, dim('#F1C40F', ambientLight));
-  // windows
-  rect(mx+4, oy-2, 7, 3, dim('#85C1E9', ambientLight));
-  rect(mx+13, oy-2, 7, 3, dim('#85C1E9', ambientLight));
-  // wheels
-  rect(mx+3, oy+10, 5, 4, '#222');
-  rect(mx+20, oy+10, 5, 4, '#222');
-  // light on top
-  if (isNight) px(mx+12, oy-4, '#E74C3C');
-  // stripe
-  rect(mx, oy+5, 28, 2, dim('#C0392B', ambientLight));
-  // update hitbox
-  this.x = mx; this.w = 28;
-});
-
-// 7. 便利店
-addChar('便利店', '北京便利店 24小时', 270, 110, 45, 55, function(ox, oy, f) {
-  rect(ox, oy+10, 45, 45, dim('#E8E8E8', ambientLight));
-  // sign - glowing
-  const glow = isNight ? '#00FF00' : '#4CAF50';
-  rect(ox+2, oy+12, 41, 8, glow);
-  rect(ox+8, oy+14, 3, 4, '#fff');
-  rect(ox+14, oy+14, 3, 4, '#fff');
-  rect(ox+20, oy+14, 3, 4, '#fff');
-  // door
-  rect(ox+15, oy+30, 15, 25, dim('#87CEEB', ambientLight));
-  if (isNight) rect(ox+15, oy+30, 15, 25, '#F7DC6F');
-  // shelves visible
-  rect(ox+3, oy+30, 10, 3, '#E74C3C');
-  rect(ox+3, oy+36, 10, 3, '#3498DB');
-  rect(ox+3, oy+42, 10, 3, '#F1C40F');
-  rect(ox+33, oy+30, 8, 3, '#E74C3C');
-  rect(ox+33, oy+36, 8, 3, '#F1C40F');
-  // ATM
-  rect(ox+36, oy+44, 6, 10, '#444');
-  px(ox+38, oy+46, '#0f0');
-  // 24h sign blink
-  if (tick % 40 < 30) {
-    rect(ox+17, oy+22, 11, 6, '#E74C3C');
-  }
-});
-
-// 8. 银杏树
-addChar('银杏树', '北京银杏大道 最佳时间', 325, 105, 25, 60, function(ox, oy, f) {
-  // trunk
-  rect(ox+10, oy+25, 5, 35, dim('#8B6914', ambientLight));
-  rect(ox+9, oy+55, 7, 5, dim('#6B4F12', ambientLight));
-  // March = early spring, sparse green buds
-  const leafColor = dim('#7CB342', ambientLight);
-  const budColor = dim('#AED581', ambientLight);
-  // crown
-  rect(ox+2, oy+5, 20, 22, leafColor);
-  rect(ox+5, oy+2, 14, 5, leafColor);
-  rect(ox+4, oy, 16, 4, budColor);
-  // leaf rustle
-  const r1 = Math.sin(f*0.03)*2;
-  px(ox+1+r1, oy+10, budColor);
-  px(ox+22+r1, oy+8, budColor);
-  px(ox+3+r1, oy+3, leafColor);
-  // falling leaf in autumn (just a gentle sway for spring)
-  if (tick % 100 < 50) {
-    const lfx = ox + 5 + Math.sin(tick*0.05)*8;
-    const lfy = oy + 28 + (tick%50)*0.4;
-    px(lfx, lfy, budColor);
-  }
-});
-
-// 9. 胡同猫
-addChar('胡同猫', '北京胡同猫 纪录片', 55, 155, 10, 10, function(ox, oy, f) {
-  // body
-  rect(ox+2, oy+4, 6, 4, dim('#F5A623', ambientLight));
-  // head
-  rect(ox+1, oy+1, 5, 4, dim('#F5A623', ambientLight));
-  // ears
-  px(ox+1, oy, dim('#F5A623', ambientLight));
-  px(ox+5, oy, dim('#F5A623', ambientLight));
-  // eyes — blink
-  if (tick % 80 < 75) {
-    px(ox+2, oy+2, '#333'); px(ox+4, oy+2, '#333');
-    if (isNight) { px(ox+2, oy+2, '#0f0'); px(ox+4, oy+2, '#0f0'); }
-  }
-  // tail wag
-  const tw = Math.sin(f*0.1) > 0 ? 0 : 1;
-  rect(ox+7, oy+3+tw, 3, 1, dim('#F5A623', ambientLight));
-  px(ox+9, oy+2+tw, dim('#F5A623', ambientLight));
-  // purring zzz at night
-  if (isNight && tick % 60 < 30) {
-    bx.fillStyle = '#888';
-    bx.font = '4px monospace';
-    bx.fillText('z', ox+7, oy);
-  }
-});
-
-// 10. 邮筒
-addChar('邮筒', '中国邮政 明信片', 260, 150, 8, 15, function(ox, oy, f) {
-  rect(ox, oy+3, 8, 12, dim('#2E7D32', ambientLight));
-  rect(ox+1, oy, 6, 4, dim('#2E7D32', ambientLight));
-  rect(ox-1, oy+3, 10, 2, dim('#1B5E20', ambientLight));
-  // slot
-  rect(ox+2, oy+6, 4, 1, '#111');
-  // 邮 character area
-  rect(ox+2, oy+9, 4, 3, dim('#4CAF50', ambientLight));
-});
-
-// === MAIN LOOP ===
-function drawScene() {
-  bx.clearRect(0, 0, W, H);
-  
-  drawSky();
-  drawBuildings();
-  
-  // mid ground
-  rect(0, 80, W, 85, dim('#B0A090', ambientLight * 0.7));
-  // hutong ground texture
-  for (let gx = 0; gx < W; gx += 8) {
-    rect(gx, 80, 1, 85, dim('#9A8A7A', ambientLight * 0.7));
-  }
-  
-  drawGround();
-  
-  characters.forEach(c => c.draw(c.x, c.y, frame));
-  
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(buf, 0, 0, W, H, 0, 0, W * SCALE, H * SCALE);
+  twinkle();
 }
-
-function loop() { frame++; tick++; drawScene(); requestAnimationFrame(loop); }
-loop();
-
-// === INTERACTION ===
-const tooltip = document.getElementById('tooltip');
-function getHit(cx, cy) {
-  const mx = cx / SCALE, my = cy / SCALE;
-  for (const c of characters) {
-    if (mx >= c.x-2 && mx <= c.x+c.w+2 && my >= c.y-2 && my <= c.y+c.h+2) return c;
-  }
-  return null;
-}
-canvas.addEventListener('mousemove', (e) => {
-  const r = canvas.getBoundingClientRect();
-  const hit = getHit(e.clientX - r.left, e.clientY - r.top);
-  if (hit) {
-    canvas.style.cursor = 'pointer';
-    tooltip.style.display = 'block';
-    tooltip.textContent = '🔍 ' + hit.name;
-    tooltip.style.left = (e.clientX+12)+'px';
-    tooltip.style.top = (e.clientY-24)+'px';
-  } else { canvas.style.cursor = 'crosshair'; tooltip.style.display = 'none'; }
-});
-canvas.addEventListener('click', (e) => {
-  const r = canvas.getBoundingClientRect();
-  const hit = getHit(e.clientX - r.left, e.clientY - r.top);
-  if (hit) window.open('https://www.bing.com/videos/search?q='+encodeURIComponent(hit.query), '_blank');
-});
-canvas.addEventListener('touchend', (e) => {
-  e.preventDefault();
-  const t = e.changedTouches[0], r = canvas.getBoundingClientRect();
-  const hit = getHit(t.clientX - r.left, t.clientY - r.top);
-  if (hit) window.open('https://www.bing.com/videos/search?q='+encodeURIComponent(hit.query), '_blank');
-});
-canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
 </script>
 </body>
 </html>
