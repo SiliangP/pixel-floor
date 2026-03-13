@@ -10,12 +10,12 @@
   h1 { color: #e0e0e0; margin-bottom: 8px; font-size: 14px; letter-spacing: 2px; }
   p.hint { color: #888; font-size: 11px; margin-bottom: 8px; }
   p.info { color: #666; font-size: 10px; margin-bottom: 12px; }
-  .scene { position: relative; width: 1200px; height: 600px; background: #1a1a2e; overflow-x: auto; overflow-y: hidden; border: 2px solid #333; image-rendering: pixelated; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
-  .scene-inner { position: relative; width: 1200px; height: 600px; }
-  .scene canvas { position: absolute; top: 0; left: 0; width: 1200px; height: 600px; image-rendering: pixelated; }
+  .scene { position: relative; width: 100%; max-width: 1200px; aspect-ratio: 2/1; background: #1a1a2e; overflow: hidden; border: 2px solid #333; image-rendering: pixelated; }
+  .scene-inner { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  .scene canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; image-rendering: pixelated; }
   .sprite { position: absolute; cursor: pointer; image-rendering: pixelated; transition: transform 0.1s; }
   .sprite:hover { transform: scale(1.08); z-index: 10; }
-  .sprite img { width: 100%; height: 100%; image-rendering: pixelated; display: block; border-radius: 4px; mix-blend-mode: lighten; }
+  .sprite img { width: 100%; height: 100%; image-rendering: pixelated; display: block; border-radius: 4px; }
   
   /* Breathing / idle animations */
   .anim-breathe { animation: breathe 3s ease-in-out infinite; }
@@ -33,7 +33,6 @@
   .sprite:hover .label { opacity: 1; }
   .tooltip { position: fixed; background: #222; color: #0f0; padding: 4px 10px; font-family: monospace; font-size: 12px; pointer-events: none; display: none; border: 1px solid #0f0; z-index: 100; }
   @media (max-width: 1200px) {
-    .scene { width: 100vw; height: 60vw; min-height: 320px; }
     h1 { font-size: 12px; }
     p.hint, p.info { font-size: 9px; }
   }
@@ -68,6 +67,9 @@ const SW = 1200, SH = 600;
 bgCanvas.width = SW;
 bgCanvas.height = SH;
 const bx = bgCanvas.getContext('2d');
+
+// Scale helper: convert absolute coords to percentages
+function pct(v, total) { return (v / total * 100).toFixed(2) + '%'; }
 
 const skyTop = isNight ? '#0a0a1a' : isDusk ? '#2d1b4e' : isMorning ? '#4a6fa5' : '#5b8fc9';
 const skyBot = isNight ? '#111133' : isDusk ? '#c0543b' : isMorning ? '#c9a96e' : '#87CEEB';
@@ -272,10 +274,10 @@ updateParticles();
 sprites.forEach(s => {
   const div = document.createElement('div');
   div.className = 'sprite' + (s.anim ? ' ' + s.anim : '');
-  div.style.left = s.x + 'px';
-  div.style.top = s.y + 'px';
-  div.style.width = s.w + 'px';
-  div.style.height = s.h + 'px';
+  div.style.left = pct(s.x, SW);
+  div.style.top = pct(s.y, SH);
+  div.style.width = pct(s.w, SW);
+  div.style.height = pct(s.h, SH);
   div.style.animationDelay = (Math.random() * 2).toFixed(1) + 's';
 
   const img = document.createElement('img');
@@ -312,9 +314,9 @@ sprites.forEach(s => {
 // === TAXI ANIMATION ===
 const taxiDiv = document.createElement('div');
 taxiDiv.className = 'sprite';
-taxiDiv.style.top = '460px';
-taxiDiv.style.width = '120px';
-taxiDiv.style.height = '60px';
+taxiDiv.style.top = pct(460, SH);
+taxiDiv.style.width = pct(120, SW);
+taxiDiv.style.height = pct(60, SH);
 taxiDiv.style.cursor = 'pointer';
 const taxiImg = document.createElement('img');
 taxiImg.src = 'sprites/taxi.jpg';
@@ -335,7 +337,7 @@ let taxiX = -150;
 function animateTaxi() {
   taxiX += 0.8;
   if (taxiX > SW + 50) taxiX = -150;
-  taxiDiv.style.left = taxiX + 'px';
+  taxiDiv.style.left = pct(taxiX, SW);
   requestAnimationFrame(animateTaxi);
 }
 animateTaxi();
