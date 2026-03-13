@@ -1,26 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pixel Floor</title>
+<title>Pixel Floor — 北京</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: monospace; }
-  h1 { color: #e0e0e0; margin-bottom: 12px; font-size: 14px; letter-spacing: 2px; }
-  p.hint { color: #888; font-size: 11px; margin-bottom: 16px; }
+  h1 { color: #e0e0e0; margin-bottom: 8px; font-size: 14px; letter-spacing: 2px; }
+  p.hint { color: #888; font-size: 11px; margin-bottom: 12px; }
+  p.info { color: #666; font-size: 10px; margin-bottom: 8px; }
   canvas { border: 2px solid #333; cursor: crosshair; image-rendering: pixelated; }
   .tooltip { position: fixed; background: #222; color: #0f0; padding: 4px 10px; font-family: monospace; font-size: 12px; pointer-events: none; display: none; border: 1px solid #0f0; z-index: 10; }
 </style>
 </head>
 <body>
-<h1>▓ PIXEL FLOOR ▓</h1>
-<p class="hint">click a character → bing search</p>
+<h1>▓ PIXEL FLOOR · 北京 ▓</h1>
+<p class="hint">点击探索 → Bing 搜索</p>
+<p class="info" id="timeinfo"></p>
 <canvas id="scene"></canvas>
 <div class="tooltip" id="tooltip"></div>
 <script>
 const SCALE = 3;
-const W = 320, H = 200;
+const W = 400, H = 240;
 const canvas = document.getElementById('scene');
 const ctx = canvas.getContext('2d');
 canvas.width = W * SCALE;
@@ -31,278 +33,406 @@ const buf = document.createElement('canvas');
 buf.width = W; buf.height = H;
 const bx = buf.getContext('2d');
 
-let frame = 0;
-let tick = 0;
+let frame = 0, tick = 0;
 
-function px(x, y, color) { bx.fillStyle = color; bx.fillRect(x, y, 1, 1); }
-function rect(x, y, w, h, color) { bx.fillStyle = color; bx.fillRect(x, y, w, h); }
+// Time of day
+const hour = new Date().getHours();
+const isNight = hour >= 20 || hour < 6;
+const isDusk = hour >= 17 && hour < 20;
+const isMorning = hour >= 6 && hour < 9;
+
+const skyTop = isNight ? '#0a0a1a' : isDusk ? '#2d1b4e' : isMorning ? '#4a6fa5' : '#5b8fc9';
+const skyBot = isNight ? '#111133' : isDusk ? '#c0543b' : isMorning ? '#c9a96e' : '#87CEEB';
+const groundColor = isNight ? '#2a2a2a' : '#555';
+const ambientLight = isNight ? 0.4 : isDusk ? 0.7 : 1.0;
+
+const timeStr = isNight ? '夜晚' : isDusk ? '黄昏' : isMorning ? '清晨' : '白天';
+document.getElementById('timeinfo').textContent = `当前：${timeStr} (${hour}:00)`;
+
+function px(x, y, c) { bx.fillStyle = c; bx.fillRect(x, y, 1, 1); }
+function rect(x, y, w, h, c) { bx.fillStyle = c; bx.fillRect(x, y, w, h); }
+
+// Dim color for night
+function dim(hex, amt) {
+  if (amt >= 1) return hex;
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  r = Math.floor(r * amt); g = Math.floor(g * amt); b = Math.floor(b * amt);
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
 
 const characters = [];
 function addChar(name, query, x, y, w, h, drawFn) {
   characters.push({ name, query, x, y, w, h, draw: drawFn });
 }
 
-// 1. Pyramid Head — sways knife
-addChar('Pyramid Head', 'Silent Hill Pyramid Head', 30, 120, 26, 24, function(ox, oy, f) {
-  const sway = Math.sin(f * 0.05) * 2;
-  rect(ox+2, oy+8, 8, 12, '#8B0000');
-  rect(ox, oy, 12, 8, '#C0392B');
-  rect(ox+1, oy, 10, 2, '#A93226');
-  rect(ox+3, oy+20, 3, 4, '#555');
-  rect(ox+7, oy+20, 3, 4, '#555');
-  // knife sways
-  rect(ox+12, oy+10+sway, 14, 2, '#aaa');
-  rect(ox+12, oy+9+sway, 2, 4, '#888');
-  // drip blood
-  if (tick % 40 < 20) px(ox+24, oy+12+sway, '#8B0000');
-});
+// === BACKGROUND ELEMENTS ===
 
-// 2. Mario — bouncing
-addChar('Mario', 'Super Mario gameplay', 80, 122, 12, 20, function(ox, oy, f) {
-  const bounce = -Math.abs(Math.sin(f * 0.08)) * 4;
-  const by = oy + bounce;
-  rect(ox+2, by, 8, 3, '#E74C3C');
-  rect(ox+1, by+2, 10, 2, '#E74C3C');
-  rect(ox+2, by+4, 8, 4, '#F5CBA7');
-  px(ox+3, by+5, '#333'); px(ox+7, by+5, '#333');
-  rect(ox+4, by+7, 4, 1, '#C0392B');
-  rect(ox+1, by+8, 10, 6, '#E74C3C');
-  rect(ox+3, by+9, 6, 4, '#3498DB');
-  rect(ox+2, by+14, 3, 4, '#3498DB');
-  rect(ox+7, by+14, 3, 4, '#3498DB');
-  rect(ox+1, by+18, 4, 2, '#8B4513');
-  rect(ox+7, by+18, 4, 2, '#8B4513');
-  // coin above when jumping
-  if (bounce < -2) {
-    px(ox+5, by-4, '#F1C40F');
-    px(ox+6, by-4, '#F1C40F');
-    px(ox+5, by-3, '#F1C40F');
-    px(ox+6, by-3, '#F1C40F');
+function drawSky() {
+  // gradient sky
+  for (let y = 0; y < 80; y++) {
+    const t = y / 80;
+    const r1 = parseInt(skyTop.slice(1,3),16), g1 = parseInt(skyTop.slice(3,5),16), b1 = parseInt(skyTop.slice(5,7),16);
+    const r2 = parseInt(skyBot.slice(1,3),16), g2 = parseInt(skyBot.slice(3,5),16), b2 = parseInt(skyBot.slice(5,7),16);
+    const r = Math.floor(r1 + (r2-r1)*t), g = Math.floor(g1 + (g2-g1)*t), b = Math.floor(b1 + (b2-b1)*t);
+    rect(0, y, W, 1, `rgb(${r},${g},${b})`);
+  }
+  // stars at night
+  if (isNight) {
+    const stars = [[20,8],[60,20],[100,12],[180,25],[250,10],[320,18],[360,30],[150,5],[280,8],[50,35]];
+    stars.forEach(([sx,sy],i) => {
+      if ((tick+i*7) % 50 < 42) px(sx, sy, '#fff');
+    });
+  }
+  // moon at night
+  if (isNight) {
+    rect(340, 10, 10, 10, '#F5E6CA');
+    rect(341, 9, 8, 1, '#F5E6CA');
+    rect(339, 11, 1, 8, '#F5E6CA');
+    rect(343, 11, 4, 3, '#E8D5B0');
+  }
+  // sun during day
+  if (!isNight && !isDusk) {
+    rect(330, 15, 8, 8, '#F1C40F');
+    rect(331, 14, 6, 1, '#F1C40F');
+    rect(331, 23, 6, 1, '#F1C40F');
+    if (tick % 20 < 10) { px(328, 19, '#F1C40F'); px(339, 19, '#F1C40F'); }
+  }
+  // dusk sun
+  if (isDusk) {
+    rect(340, 55, 12, 6, '#E74C3C');
+    rect(342, 54, 8, 1, '#E67E22');
+  }
+}
+
+function drawBuildings() {
+  // far buildings silhouette
+  const bldgs = [[0,50,25,30],[30,45,20,35],[55,52,30,28],[90,40,20,40],[115,48,25,32],[145,42,30,38],[180,50,25,30],[210,38,22,42],[240,46,28,34],[275,42,20,38],[300,50,30,30],[335,44,25,36],[365,50,35,30]];
+  bldgs.forEach(([bx2,by,bw,bh]) => {
+    rect(bx2, by, bw, bh, dim('#2C3E50', ambientLight * 0.6));
+    // windows
+    for (let wy = by+4; wy < by+bh-4; wy += 6) {
+      for (let wx = bx2+3; wx < bx2+bw-3; wx += 5) {
+        if (isNight && Math.random() > 0.4) {
+          px(wx, wy, '#F7DC6F'); px(wx+1, wy, '#F7DC6F');
+          px(wx, wy+1, '#F39C12'); px(wx+1, wy+1, '#F39C12');
+        } else if (!isNight) {
+          px(wx, wy, dim('#85C1E9', ambientLight)); px(wx+1, wy, dim('#85C1E9', ambientLight));
+        }
+      }
+    }
+  });
+}
+
+function drawGround() {
+  // main road
+  rect(0, 170, W, 70, dim('#555', ambientLight));
+  // sidewalk
+  rect(0, 165, W, 8, dim('#888', ambientLight));
+  // road lines
+  for (let lx = (tick % 20) * -1; lx < W; lx += 20) {
+    rect(lx, 200, 8, 2, dim('#F1C40F', ambientLight * 0.8));
+  }
+  // sidewalk tiles
+  for (let tx = 0; tx < W; tx += 12) {
+    rect(tx, 165, 1, 8, dim('#777', ambientLight));
+  }
+}
+
+// === CLICKABLE ELEMENTS ===
+
+// 1. 故宫角楼 (far background)
+addChar('故宫角楼', '北京故宫角楼 摄影', 160, 55, 40, 30, function(ox, oy, f) {
+  // base
+  rect(ox+5, oy+15, 30, 15, dim('#8B4513', ambientLight));
+  rect(ox+8, oy+12, 24, 5, dim('#A0522D', ambientLight));
+  // roof layers
+  rect(ox+3, oy+8, 34, 5, dim('#C0392B', ambientLight));
+  rect(ox+6, oy+5, 28, 4, dim('#E74C3C', ambientLight));
+  rect(ox+10, oy+2, 20, 4, dim('#C0392B', ambientLight));
+  rect(ox+14, oy, 12, 3, dim('#E74C3C', ambientLight));
+  // tip
+  rect(ox+19, oy-2, 2, 3, dim('#F1C40F', ambientLight));
+  // windows glow at night
+  if (isNight) {
+    rect(ox+12, oy+18, 4, 4, '#F39C12');
+    rect(ox+20, oy+18, 4, 4, '#F39C12');
+    rect(ox+28, oy+18, 4, 4, '#F39C12');
   }
 });
 
-// 3. Pikachu — tail wag + cheek spark
-addChar('Pikachu', 'Pikachu Pokemon', 140, 126, 18, 18, function(ox, oy, f) {
-  rect(ox+2, oy+4, 10, 8, '#F1C40F');
-  rect(ox+3, oy+0, 8, 6, '#F1C40F');
-  rect(ox+2, oy-4, 2, 5, '#F1C40F'); px(ox+2, oy-4, '#333');
-  rect(ox+10, oy-4, 2, 5, '#F1C40F'); px(ox+11, oy-4, '#333');
-  px(ox+5, oy+2, '#333'); px(ox+9, oy+2, '#333');
-  // cheek sparks
-  const spark = tick % 30 < 15;
-  px(ox+3, oy+3, spark ? '#FF0' : '#E74C3C');
-  px(ox+10, oy+3, spark ? '#FF0' : '#E74C3C');
-  if (spark) { px(ox+2, oy+2, '#FF0'); px(ox+11, oy+2, '#FF0'); }
-  // tail wag
-  const tw = Math.sin(f * 0.1) > 0 ? 0 : 1;
-  rect(ox+12, oy+2+tw, 2, 2, '#F1C40F');
-  rect(ox+14, oy+0+tw, 2, 3, '#F1C40F');
-  rect(ox+16, oy-1+tw, 2, 2, '#F1C40F');
-  rect(ox+3, oy+12, 3, 2, '#F1C40F');
-  rect(ox+8, oy+12, 3, 2, '#F1C40F');
+// 2. 胡同门楼 + 红灯笼
+addChar('胡同', '北京胡同 旅游攻略', 10, 95, 50, 70, function(ox, oy, f) {
+  // wall
+  rect(ox, oy+15, 50, 55, dim('#8B8378', ambientLight));
+  rect(ox, oy+15, 50, 2, dim('#696156', ambientLight));
+  // gate
+  rect(ox+15, oy+35, 20, 35, dim('#5C3317', ambientLight));
+  rect(ox+16, oy+36, 18, 33, dim('#6B3A20', ambientLight));
+  rect(ox+24, oy+50, 2, 2, '#F1C40F'); // door handle
+  // roof
+  rect(ox-2, oy+10, 54, 7, dim('#555', ambientLight));
+  rect(ox, oy+8, 50, 4, dim('#666', ambientLight));
+  // 红灯笼 — swaying
+  const sw = Math.sin(f * 0.04) * 1;
+  drawLantern(ox+8+sw, oy+12);
+  drawLantern(ox+38+sw, oy+12);
+  // 门牌
+  rect(ox+20, oy+30, 10, 5, dim('#C0392B', ambientLight));
 });
 
-// 4. Among Us Crewmate — walking in place
-addChar('Crewmate', 'Among Us', 200, 128, 12, 15, function(ox, oy, f) {
-  rect(ox+2, oy+2, 8, 10, '#E74C3C');
-  rect(ox+1, oy+4, 10, 6, '#E74C3C');
-  rect(ox+6, oy+3, 5, 4, '#85C1E9');
-  rect(ox, oy+4, 2, 5, '#C0392B');
-  // legs alternate
-  const step = tick % 20 < 10;
-  if (step) {
-    rect(ox+2, oy+12, 3, 3, '#E74C3C');
-    rect(ox+8, oy+12, 3, 2, '#E74C3C');
+function drawLantern(lx, ly) {
+  rect(lx, ly, 1, 3, '#888');
+  rect(lx-2, ly+3, 5, 7, '#E74C3C');
+  rect(lx-1, ly+4, 3, 5, '#C0392B');
+  rect(lx-1, ly+10, 3, 2, '#F1C40F');
+  // glow at night
+  if (isNight) {
+    rect(lx-3, ly+2, 7, 9, 'rgba(255,100,50,0.15)');
+  }
+}
+
+// 3. 煎饼摊
+addChar('煎饼摊', '北京煎饼果子 推荐', 70, 130, 35, 35, function(ox, oy, f) {
+  // cart
+  rect(ox, oy+15, 30, 20, dim('#8B6914', ambientLight));
+  rect(ox+2, oy+17, 26, 16, dim('#A07828', ambientLight));
+  // wheels
+  rect(ox+3, oy+34, 4, 4, '#333'); rect(ox+23, oy+34, 4, 4, '#333');
+  // umbrella
+  rect(ox+5, oy, 20, 3, '#E74C3C');
+  rect(ox+14, oy+3, 2, 12, '#888');
+  // steam animation
+  if (tick % 8 < 4) {
+    px(ox+10, oy+14, '#ccc'); px(ox+12, oy+13, '#aaa'); px(ox+14, oy+12, '#888');
   } else {
-    rect(ox+2, oy+12, 3, 2, '#E74C3C');
-    rect(ox+7, oy+12, 3, 3, '#E74C3C');
+    px(ox+11, oy+13, '#ccc'); px(ox+13, oy+12, '#aaa'); px(ox+15, oy+14, '#888');
   }
-  // sus ? floating text
-  if (tick % 120 < 30) {
-    bx.fillStyle = '#fff';
-    bx.font = '4px monospace';
-    bx.fillText('sus?', ox+1, oy-2);
+  // griddle
+  rect(ox+5, oy+18, 14, 2, '#666');
+  rect(ox+6, oy+18, 12, 1, '#F1C40F'); // pancake!
+  // vendor
+  rect(ox+25, oy+10, 6, 8, dim('#fff', ambientLight));
+  rect(ox+26, oy+6, 4, 4, dim('#F5CBA7', ambientLight));
+  rect(ox+27, oy+4, 2, 2, '#fff'); // hat
+});
+
+// 4. 共享单车
+addChar('共享单车', '北京共享单车', 115, 155, 20, 18, function(ox, oy, f) {
+  // frame
+  rect(ox+4, oy+4, 10, 2, '#3498DB');
+  rect(ox+4, oy+4, 2, 8, '#3498DB');
+  rect(ox+12, oy+4, 2, 8, '#3498DB');
+  rect(ox+6, oy+2, 6, 2, '#3498DB');
+  // wheels
+  rect(ox+1, oy+12, 6, 6, '#333');
+  rect(ox+2, oy+13, 4, 4, '#888');
+  rect(ox+11, oy+12, 6, 6, '#333');
+  rect(ox+12, oy+13, 4, 4, '#888');
+  // seat
+  rect(ox+5, oy+1, 4, 2, '#222');
+  // basket
+  rect(ox+12, oy, 5, 4, '#3498DB');
+});
+
+// 5. 奶茶店
+addChar('奶茶店', '北京奶茶店 排行榜', 140, 110, 45, 55, function(ox, oy, f) {
+  // building
+  rect(ox, oy+10, 45, 45, dim('#F5E6CA', ambientLight));
+  // window/door
+  rect(ox+5, oy+25, 15, 30, dim('#87CEEB', ambientLight * 0.7));
+  rect(ox+25, oy+25, 15, 30, dim('#87CEEB', ambientLight * 0.7));
+  // sign
+  rect(ox+2, oy+12, 41, 10, '#4CAF50');
+  // sign text dots (代表文字)
+  for (let sx = ox+8; sx < ox+38; sx += 4) {
+    rect(sx, oy+15, 2, 4, '#fff');
+  }
+  // awning
+  for (let ax = ox; ax < ox+45; ax += 6) {
+    rect(ax, oy+8, 3, 5, '#E74C3C');
+    rect(ax+3, oy+8, 3, 5, '#fff');
+  }
+  // light glow at night
+  if (isNight) {
+    rect(ox-2, oy+22, 49, 2, 'rgba(255,200,100,0.3)');
+    rect(ox+6, oy+26, 13, 28, '#F7DC6F');
+    rect(ox+26, oy+26, 13, 28, '#F7DC6F');
+  }
+  // person with boba tea
+  if (tick % 120 < 80) {
+    const px2 = ox + 20;
+    rect(px2, oy+42, 4, 6, dim('#E74C3C', ambientLight));
+    rect(px2+1, oy+39, 2, 3, dim('#F5CBA7', ambientLight));
+    rect(px2+4, oy+43, 2, 3, dim('#8B4513', ambientLight)); // boba cup
   }
 });
 
-// 5. Pac-Man — mouth open/close + ghost moves
-addChar('Pac-Man', 'Pac-Man game', 250, 130, 12, 12, function(ox, oy, f) {
-  const open = tick % 16 < 8;
-  rect(ox+2, oy, 8, 2, '#F1C40F');
-  rect(ox+1, oy+2, 10, 2, '#F1C40F');
-  rect(ox, oy+4, 12, 4, '#F1C40F');
-  rect(ox+1, oy+8, 10, 2, '#F1C40F');
-  rect(ox+2, oy+10, 8, 2, '#F1C40F');
-  if (open) {
-    rect(ox+8, oy+4, 4, 2, '#1a1a2e');
-    rect(ox+10, oy+3, 2, 1, '#1a1a2e');
-    rect(ox+10, oy+7, 2, 1, '#1a1a2e');
-  }
-  px(ox+4, oy+2, '#333');
-  // dots
-  for (let d = 0; d < 3; d++) {
-    const dx = ox + 14 + d * 4;
-    if ((tick + d * 8) % 32 < 24) px(dx, oy+5, '#F1C40F');
-  }
-  // ghost bounces
-  const gb = Math.sin(f * 0.08) * 1.5;
-  const gx = ox + 18; const gy = oy + 1 + gb;
-  rect(gx, gy, 8, 9, '#E67E22');
-  rect(gx+1, gy-1, 6, 1, '#E67E22');
-  rect(gx, gy+9, 2, 2, '#E67E22');
-  rect(gx+3, gy+9, 2, 2, '#E67E22');
-  rect(gx+6, gy+9, 2, 2, '#E67E22');
-  px(gx+2, gy+2, '#fff'); px(gx+5, gy+2, '#fff');
-  const look = tick % 40 < 20 ? 0 : 1;
-  px(gx+2+look, gy+3, '#33f'); px(gx+5+look, gy+3, '#33f');
-});
-
-// 6. Creeper — blinks + hisses (flashes)
-addChar('Creeper', 'Minecraft Creeper', 170, 118, 12, 24, function(ox, oy, f) {
-  const hiss = tick % 180 < 10;
-  const bodyColor = hiss ? '#fff' : '#4CAF50';
-  const bodyLight = hiss ? '#fff' : '#66BB6A';
-  rect(ox, oy, 12, 12, bodyColor);
-  rect(ox+1, oy+1, 10, 10, bodyLight);
-  // face
-  const fc = hiss ? '#aaa' : '#1B5E20';
-  px(ox+3, oy+3, fc); px(ox+4, oy+3, fc);
-  px(ox+7, oy+3, fc); px(ox+8, oy+3, fc);
-  px(ox+3, oy+4, fc); px(ox+8, oy+4, fc);
-  rect(ox+5, oy+5, 2, 2, fc);
-  rect(ox+4, oy+7, 4, 2, fc);
-  rect(ox+3, oy+8, 2, 2, fc);
-  rect(ox+7, oy+8, 2, 2, fc);
+// 6. 出租车
+addChar('北京出租车', '北京出租车', 220, 185, 30, 16, function(ox, oy, f) {
+  const moving = Math.floor(tick * 0.3) % W;
+  const mx = (ox + moving) % (W + 40) - 20;
   // body
-  rect(ox+2, oy+12, 8, 8, bodyColor);
-  // legs shuffle
-  const step = tick % 24 < 12;
-  rect(ox+2, oy+20, 3, step ? 4 : 3, '#388E3C');
-  rect(ox+7, oy+20, 3, step ? 3 : 4, '#388E3C');
-  // hiss text
-  if (hiss) {
-    bx.fillStyle = '#0f0';
-    bx.font = '4px monospace';
-    bx.fillText('sss!', ox, oy-3);
+  rect(mx, oy, 28, 10, dim('#F1C40F', ambientLight));
+  rect(mx+2, oy-3, 20, 4, dim('#F1C40F', ambientLight));
+  // windows
+  rect(mx+4, oy-2, 7, 3, dim('#85C1E9', ambientLight));
+  rect(mx+13, oy-2, 7, 3, dim('#85C1E9', ambientLight));
+  // wheels
+  rect(mx+3, oy+10, 5, 4, '#222');
+  rect(mx+20, oy+10, 5, 4, '#222');
+  // light on top
+  if (isNight) px(mx+12, oy-4, '#E74C3C');
+  // stripe
+  rect(mx, oy+5, 28, 2, dim('#C0392B', ambientLight));
+  // update hitbox
+  this.x = mx; this.w = 28;
+});
+
+// 7. 便利店
+addChar('便利店', '北京便利店 24小时', 270, 110, 45, 55, function(ox, oy, f) {
+  rect(ox, oy+10, 45, 45, dim('#E8E8E8', ambientLight));
+  // sign - glowing
+  const glow = isNight ? '#00FF00' : '#4CAF50';
+  rect(ox+2, oy+12, 41, 8, glow);
+  rect(ox+8, oy+14, 3, 4, '#fff');
+  rect(ox+14, oy+14, 3, 4, '#fff');
+  rect(ox+20, oy+14, 3, 4, '#fff');
+  // door
+  rect(ox+15, oy+30, 15, 25, dim('#87CEEB', ambientLight));
+  if (isNight) rect(ox+15, oy+30, 15, 25, '#F7DC6F');
+  // shelves visible
+  rect(ox+3, oy+30, 10, 3, '#E74C3C');
+  rect(ox+3, oy+36, 10, 3, '#3498DB');
+  rect(ox+3, oy+42, 10, 3, '#F1C40F');
+  rect(ox+33, oy+30, 8, 3, '#E74C3C');
+  rect(ox+33, oy+36, 8, 3, '#F1C40F');
+  // ATM
+  rect(ox+36, oy+44, 6, 10, '#444');
+  px(ox+38, oy+46, '#0f0');
+  // 24h sign blink
+  if (tick % 40 < 30) {
+    rect(ox+17, oy+22, 11, 6, '#E74C3C');
   }
 });
 
-// --- Scene ---
+// 8. 银杏树
+addChar('银杏树', '北京银杏大道 最佳时间', 325, 105, 25, 60, function(ox, oy, f) {
+  // trunk
+  rect(ox+10, oy+25, 5, 35, dim('#8B6914', ambientLight));
+  rect(ox+9, oy+55, 7, 5, dim('#6B4F12', ambientLight));
+  // March = early spring, sparse green buds
+  const leafColor = dim('#7CB342', ambientLight);
+  const budColor = dim('#AED581', ambientLight);
+  // crown
+  rect(ox+2, oy+5, 20, 22, leafColor);
+  rect(ox+5, oy+2, 14, 5, leafColor);
+  rect(ox+4, oy, 16, 4, budColor);
+  // leaf rustle
+  const r1 = Math.sin(f*0.03)*2;
+  px(ox+1+r1, oy+10, budColor);
+  px(ox+22+r1, oy+8, budColor);
+  px(ox+3+r1, oy+3, leafColor);
+  // falling leaf in autumn (just a gentle sway for spring)
+  if (tick % 100 < 50) {
+    const lfx = ox + 5 + Math.sin(tick*0.05)*8;
+    const lfy = oy + 28 + (tick%50)*0.4;
+    px(lfx, lfy, budColor);
+  }
+});
+
+// 9. 胡同猫
+addChar('胡同猫', '北京胡同猫 纪录片', 55, 155, 10, 10, function(ox, oy, f) {
+  // body
+  rect(ox+2, oy+4, 6, 4, dim('#F5A623', ambientLight));
+  // head
+  rect(ox+1, oy+1, 5, 4, dim('#F5A623', ambientLight));
+  // ears
+  px(ox+1, oy, dim('#F5A623', ambientLight));
+  px(ox+5, oy, dim('#F5A623', ambientLight));
+  // eyes — blink
+  if (tick % 80 < 75) {
+    px(ox+2, oy+2, '#333'); px(ox+4, oy+2, '#333');
+    if (isNight) { px(ox+2, oy+2, '#0f0'); px(ox+4, oy+2, '#0f0'); }
+  }
+  // tail wag
+  const tw = Math.sin(f*0.1) > 0 ? 0 : 1;
+  rect(ox+7, oy+3+tw, 3, 1, dim('#F5A623', ambientLight));
+  px(ox+9, oy+2+tw, dim('#F5A623', ambientLight));
+  // purring zzz at night
+  if (isNight && tick % 60 < 30) {
+    bx.fillStyle = '#888';
+    bx.font = '4px monospace';
+    bx.fillText('z', ox+7, oy);
+  }
+});
+
+// 10. 邮筒
+addChar('邮筒', '中国邮政 明信片', 260, 150, 8, 15, function(ox, oy, f) {
+  rect(ox, oy+3, 8, 12, dim('#2E7D32', ambientLight));
+  rect(ox+1, oy, 6, 4, dim('#2E7D32', ambientLight));
+  rect(ox-1, oy+3, 10, 2, dim('#1B5E20', ambientLight));
+  // slot
+  rect(ox+2, oy+6, 4, 1, '#111');
+  // 邮 character area
+  rect(ox+2, oy+9, 4, 3, dim('#4CAF50', ambientLight));
+});
+
+// === MAIN LOOP ===
 function drawScene() {
   bx.clearRect(0, 0, W, H);
-  // sky gradient
-  rect(0, 0, W, 80, '#16213E');
-  // twinkling stars
-  const stars = [[10,10],[50,25],[90,15],[150,30],[200,8],[260,20],[300,12],[45,50],[180,55],[280,45],[130,18],[70,40],[220,35],[310,50]];
-  stars.forEach(([sx,sy], i) => {
-    if ((tick + i * 7) % 60 < 50) px(sx, sy, '#fff');
-    else px(sx, sy, '#888');
-  });
-
-  // building
-  rect(0, 60, W, 10, '#2C3E50');
-  rect(0, 70, W, 130, '#1C2833');
-  for (let i = 0; i < W; i += 20) rect(i, 70, 1, 130, '#2C3E50');
-  rect(0, 145, W, 1, '#2C3E50');
-  rect(0, 100, W, 1, '#2C3E50');
-
-  // windows — some flicker
-  for (let wx = 10; wx < W; wx += 40) {
-    const flicker = ((tick + wx) % 200 < 10) ? '#E8B810' : '#F39C12';
-    rect(wx, 75, 12, 15, flicker);
-    rect(wx+1, 76, 10, 13, '#F7DC6F');
-    rect(wx+5, 76, 2, 13, flicker);
-    rect(wx+1, 82, 10, 1, flicker);
+  
+  drawSky();
+  drawBuildings();
+  
+  // mid ground
+  rect(0, 80, W, 85, dim('#B0A090', ambientLight * 0.7));
+  // hutong ground texture
+  for (let gx = 0; gx < W; gx += 8) {
+    rect(gx, 80, 1, 85, dim('#9A8A7A', ambientLight * 0.7));
   }
-
-  // floor
-  rect(0, 148, W, 52, '#34495E');
-  for (let fx = 0; fx < W; fx += 16) rect(fx, 148, 1, 52, '#2C3E50');
-  for (let fy = 148; fy < 200; fy += 8) rect(0, fy, W, 1, '#2C3E50');
-
-  // pipes — steam
-  rect(120, 135, 6, 13, '#7F8C8D');
-  rect(118, 133, 10, 4, '#95A5A6');
-  if (tick % 60 < 30) {
-    const sy = 130 - (tick % 30) * 0.3;
-    px(122, sy, '#ccc');
-    px(123, sy-1, '#aaa');
-    px(121, sy-2, '#888');
-  }
-
-  // crates
-  rect(215, 138, 10, 10, '#8B6914');
-  rect(216, 139, 8, 8, '#A07828');
-  rect(220, 139, 1, 8, '#8B6914');
-  rect(216, 143, 8, 1, '#8B6914');
-
-  // characters
+  
+  drawGround();
+  
   characters.forEach(c => c.draw(c.x, c.y, frame));
-
-  // render
+  
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(buf, 0, 0, W, H, 0, 0, W * SCALE, H * SCALE);
 }
 
-function loop() {
-  frame++;
-  tick++;
-  drawScene();
-  requestAnimationFrame(loop);
-}
+function loop() { frame++; tick++; drawScene(); requestAnimationFrame(loop); }
 loop();
 
-// --- Interaction ---
+// === INTERACTION ===
 const tooltip = document.getElementById('tooltip');
-
-function getHit(e) {
-  const r = canvas.getBoundingClientRect();
-  const mx = (e.clientX - r.left) / SCALE;
-  const my = (e.clientY - r.top) / SCALE;
+function getHit(cx, cy) {
+  const mx = cx / SCALE, my = cy / SCALE;
   for (const c of characters) {
-    if (mx >= c.x && mx <= c.x + c.w && my >= c.y - 5 && my <= c.y + c.h) return c;
+    if (mx >= c.x-2 && mx <= c.x+c.w+2 && my >= c.y-2 && my <= c.y+c.h+2) return c;
   }
   return null;
 }
-
 canvas.addEventListener('mousemove', (e) => {
-  const hit = getHit(e);
+  const r = canvas.getBoundingClientRect();
+  const hit = getHit(e.clientX - r.left, e.clientY - r.top);
   if (hit) {
     canvas.style.cursor = 'pointer';
     tooltip.style.display = 'block';
     tooltip.textContent = '🔍 ' + hit.name;
-    tooltip.style.left = (e.clientX + 12) + 'px';
-    tooltip.style.top = (e.clientY - 24) + 'px';
-  } else {
-    canvas.style.cursor = 'crosshair';
-    tooltip.style.display = 'none';
-  }
+    tooltip.style.left = (e.clientX+12)+'px';
+    tooltip.style.top = (e.clientY-24)+'px';
+  } else { canvas.style.cursor = 'crosshair'; tooltip.style.display = 'none'; }
 });
-
 canvas.addEventListener('click', (e) => {
-  const hit = getHit(e);
-  if (hit) {
-    const q = encodeURIComponent(hit.query);
-    window.open('https://www.bing.com/videos/search?q=' + q, '_blank');
-  }
+  const r = canvas.getBoundingClientRect();
+  const hit = getHit(e.clientX - r.left, e.clientY - r.top);
+  if (hit) window.open('https://www.bing.com/videos/search?q='+encodeURIComponent(hit.query), '_blank');
 });
-
-// Touch support for mobile
 canvas.addEventListener('touchend', (e) => {
   e.preventDefault();
-  const touch = e.changedTouches[0];
-  const r = canvas.getBoundingClientRect();
-  const mx = (touch.clientX - r.left) / SCALE;
-  const my = (touch.clientY - r.top) / SCALE;
-  for (const c of characters) {
-    if (mx >= c.x && mx <= c.x + c.w && my >= c.y - 5 && my <= c.y + c.h) {
-      const q = encodeURIComponent(c.query);
-      window.open('https://www.bing.com/videos/search?q=' + q, '_blank');
-      return;
-    }
-  }
+  const t = e.changedTouches[0], r = canvas.getBoundingClientRect();
+  const hit = getHit(t.clientX - r.left, t.clientY - r.top);
+  if (hit) window.open('https://www.bing.com/videos/search?q='+encodeURIComponent(hit.query), '_blank');
 });
-
 canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
 </script>
 </body>
