@@ -3,291 +3,362 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pixel Floor — 北京</title>
+<title>Pixel Floor · 北京</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Noto+Sans+SC:wght@300;500&display=swap" rel="stylesheet">
 <style>
+  :root {
+    /* OKLCH-inspired palette — warm Beijing tones */
+    --bg-deep: #0f0e17;
+    --bg-mid: #1a1828;
+    --surface: #232136;
+    --text-primary: #e8e0d4;
+    --text-dim: #8a8073;
+    --accent-warm: #e8a44a;
+    --accent-red: #c0453a;
+    --accent-green: #5a9e6f;
+    --glow-warm: rgba(232,164,74,0.15);
+    --glow-red: rgba(192,69,58,0.12);
+
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: monospace; overflow-x: hidden; }
-  h1 { color: #e0e0e0; margin-bottom: 8px; font-size: 14px; letter-spacing: 2px; }
-  p.hint { color: #888; font-size: 11px; margin-bottom: 8px; }
-  p.info { color: #666; font-size: 10px; margin-bottom: 12px; }
-  .scene { position: relative; width: 100%; max-width: 1200px; aspect-ratio: 2/1; background: #1a1a2e; overflow: hidden; border: 2px solid #333; image-rendering: pixelated; }
-  .scene-inner { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-  .scene canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; image-rendering: pixelated; }
-  .sprite { position: absolute; cursor: pointer; image-rendering: pixelated; transition: transform 0.1s; }
-  .sprite:hover { transform: scale(1.08); z-index: 10; }
-  .sprite img { width: 100%; height: 100%; image-rendering: pixelated; display: block; border-radius: 4px; }
-  
-  /* Breathing / idle animations */
-  .anim-breathe { animation: breathe 3s ease-in-out infinite; }
-  .anim-sway { animation: sway 4s ease-in-out infinite; }
-  .anim-bob { animation: bob 2s ease-in-out infinite; }
-  .anim-flicker { animation: flicker 3s ease-in-out infinite; }
-  .anim-tail { animation: tail 1.5s ease-in-out infinite; }
-  
-  @keyframes breathe { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(1.02); } }
-  @keyframes sway { 0%,100% { transform: rotate(-1deg); } 50% { transform: rotate(1deg); } }
-  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-  @keyframes flicker { 0%,100% { opacity: 1; } 50% { opacity: 0.85; } }
-  @keyframes tail { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
-  .sprite .label { position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); background: #222; color: #0f0; padding: 2px 6px; font-size: 10px; font-family: monospace; white-space: nowrap; border: 1px solid #0f0; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
-  .sprite:hover .label { opacity: 1; }
-  .tooltip { position: fixed; background: #222; color: #0f0; padding: 4px 10px; font-family: monospace; font-size: 12px; pointer-events: none; display: none; border: 1px solid #0f0; z-index: 100; }
-  @media (max-width: 1200px) {
-    h1 { font-size: 12px; }
-    p.hint, p.info { font-size: 9px; }
+
+  body {
+    background: var(--bg-deep);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Noto Sans SC', sans-serif;
+    color: var(--text-primary);
+    overflow-x: hidden;
+  }
+
+  /* Header — editorial, not centered */
+  .header {
+    width: 100%;
+    max-width: 1200px;
+    padding: 32px 24px 16px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  .header h1 {
+    font-family: 'Silkscreen', monospace;
+    font-size: clamp(18px, 3vw, 28px);
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--accent-warm);
+    text-shadow: 0 0 30px var(--glow-warm);
+  }
+
+  .header .location {
+    font-size: clamp(12px, 1.8vw, 16px);
+    font-weight: 300;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+
+  .header .time-badge {
+    margin-left: auto;
+    font-family: 'Silkscreen', monospace;
+    font-size: 11px;
+    color: var(--accent-warm);
+    padding: 4px 10px;
+    border: 1px solid var(--accent-warm);
+    border-radius: 2px;
+    opacity: 0.7;
+  }
+
+  /* Scene container */
+  .scene-wrap {
+    width: 100%;
+    max-width: 1200px;
+    padding: 0 24px 24px;
+  }
+
+  .scene {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    background: var(--bg-mid);
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 4px;
+    box-shadow: 0 8px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .scene canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    image-rendering: pixelated;
+  }
+
+  .scene-inner {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+  }
+
+  /* Sprites */
+  .sprite {
+    position: absolute;
+    cursor: pointer;
+    image-rendering: pixelated;
+    transition: transform 0.3s var(--ease-out-expo), filter 0.3s var(--ease-out-expo);
+    will-change: transform;
+  }
+
+  .sprite:hover {
+    transform: scale(1.06) translateY(-2px);
+    z-index: 10;
+    filter: brightness(1.15);
+  }
+
+  .sprite:active {
+    transform: scale(1.02);
+    transition-duration: 0.1s;
+  }
+
+  .sprite img {
+    width: 100%; height: 100%;
+    image-rendering: pixelated;
+    display: block;
+    border-radius: 3px;
+  }
+
+  /* Labels — appear on hover, minimal */
+  .sprite .label {
+    position: absolute;
+    bottom: -24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    font-family: 'Silkscreen', monospace;
+    font-size: 10px;
+    color: var(--accent-warm);
+    background: var(--bg-deep);
+    padding: 3px 8px;
+    border: 1px solid rgba(232,164,74,0.3);
+    border-radius: 2px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s var(--ease-out-quart), transform 0.2s var(--ease-out-quart);
+    pointer-events: none;
+  }
+
+  .sprite:hover .label {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Idle animations — subtle, not distracting */
+  .anim-breathe { animation: breathe 4s ease-in-out infinite; }
+  .anim-sway { animation: sway 5s ease-in-out infinite; }
+  .anim-bob { animation: bob 2.5s ease-in-out infinite; }
+  .anim-glow { animation: glow 3s ease-in-out infinite; }
+
+  @keyframes breathe { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(1.015); } }
+  @keyframes sway { 0%,100% { transform: rotate(-0.5deg); } 50% { transform: rotate(0.5deg); } }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+  @keyframes glow { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.08); } }
+
+  /* Footer hint */
+  .footer {
+    padding: 16px 24px 32px;
+    text-align: center;
+  }
+
+  .footer p {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+  }
+
+  .footer span {
+    color: var(--accent-warm);
+    opacity: 0.6;
+  }
+
+  /* Entrance stagger */
+  .sprite { opacity: 0; transform: translateY(12px); }
+  .sprite.revealed {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.6s var(--ease-out-expo), transform 0.6s var(--ease-out-expo);
   }
 </style>
 </head>
 <body>
-<h1>▓ PIXEL FLOOR · 北京 ▓</h1>
-<p class="hint">点击探索 → Bing 搜索</p>
-<p class="info" id="timeinfo"></p>
 
-<div class="scene" id="scene">
-  <div class="scene-inner" id="scene-inner">
+<div class="header">
+  <h1>PIXEL FLOOR</h1>
+  <span class="location">北京 · Beijing</span>
+  <span class="time-badge" id="timebadge"></span>
+</div>
+
+<div class="scene-wrap">
+  <div class="scene" id="scene">
     <canvas id="bg"></canvas>
+    <div class="scene-inner" id="scene-inner"></div>
+    <canvas id="fx" style="pointer-events:none;z-index:50;"></canvas>
   </div>
 </div>
 
+<div class="footer">
+  <p>点击任意元素探索 <span>→</span> Bing 搜索</p>
+</div>
+
 <script>
-// === TIME OF DAY ===
+// === TIME ===
 const hour = new Date().getHours();
 const isNight = hour >= 20 || hour < 6;
 const isDusk = hour >= 17 && hour < 20;
 const isMorning = hour >= 6 && hour < 9;
-const timeStr = isNight ? '🌙 夜晚' : isDusk ? '🌅 黄昏' : isMorning ? '🌤 清晨' : '☀️ 白天';
-document.getElementById('timeinfo').textContent = `${timeStr} · ${hour}:00`;
+const timeStr = isNight ? '夜' : isDusk ? '黄昏' : isMorning ? '晨' : '昼';
+document.getElementById('timebadge').textContent = `${hour}:00 · ${timeStr}`;
 
 const ambientLight = isNight ? 0.35 : isDusk ? 0.65 : 1.0;
 
-// === BACKGROUND CANVAS ===
-const bgCanvas = document.getElementById('bg');
-const scene = document.getElementById('scene');
+// === CANVAS SETUP ===
 const SW = 1200, SH = 600;
-bgCanvas.width = SW;
-bgCanvas.height = SH;
+const bgCanvas = document.getElementById('bg');
+const fxCanvas = document.getElementById('fx');
+bgCanvas.width = SW; bgCanvas.height = SH;
+fxCanvas.width = SW; fxCanvas.height = SH;
 const bx = bgCanvas.getContext('2d');
+const fx = fxCanvas.getContext('2d');
 
-// Scale helper: convert absolute coords to percentages
+// === HELPER ===
 function pct(v, total) { return (v / total * 100).toFixed(2) + '%'; }
 
-const skyTop = isNight ? '#0a0a1a' : isDusk ? '#2d1b4e' : isMorning ? '#4a6fa5' : '#5b8fc9';
-const skyBot = isNight ? '#111133' : isDusk ? '#c0543b' : isMorning ? '#c9a96e' : '#87CEEB';
+// === BACKGROUND ===
+function drawBG() {
+  // Sky gradient — tinted, never pure
+  const skyTop = isNight ? '#0c0b18' : isDusk ? '#2a1540' : isMorning ? '#3d5a80' : '#4a7fb5';
+  const skyBot = isNight ? '#12112a' : isDusk ? '#a8432e' : isMorning ? '#b89858' : '#7ab4d4';
 
-function drawBackground() {
-  // sky gradient
   const grad = bx.createLinearGradient(0, 0, 0, 280);
   grad.addColorStop(0, skyTop);
   grad.addColorStop(1, skyBot);
   bx.fillStyle = grad;
   bx.fillRect(0, 0, SW, 280);
 
-  // stars at night
+  // Stars
   if (isNight) {
-    bx.fillStyle = '#fff';
-    [[30,20],[90,50],[180,30],[300,60],[420,15],[540,40],[660,25],[780,55],[900,20],[1020,35],[1100,50],[150,70],[500,10],[850,65]].forEach(([x,y]) => {
+    bx.fillStyle = '#d4cfc0';
+    [[30,18],[95,45],[185,28],[310,55],[425,12],[545,38],[665,22],[785,50],[905,18],[1025,32],[1105,48],[155,65],[505,8],[855,60]].forEach(([x,y]) => {
+      bx.globalAlpha = 0.4 + Math.random() * 0.6;
       bx.fillRect(x, y, 2, 2);
     });
-    // moon
-    bx.fillStyle = '#F5E6CA';
-    bx.beginPath(); bx.arc(1050, 60, 25, 0, Math.PI*2); bx.fill();
-    bx.fillStyle = '#0a0a1a';
-    bx.beginPath(); bx.arc(1040, 55, 22, 0, Math.PI*2); bx.fill();
+    bx.globalAlpha = 1;
+    // Moon — warm tint
+    bx.fillStyle = '#e8dcc8';
+    bx.beginPath(); bx.arc(1050, 55, 22, 0, Math.PI*2); bx.fill();
+    bx.fillStyle = skyTop;
+    bx.beginPath(); bx.arc(1042, 50, 19, 0, Math.PI*2); bx.fill();
   }
 
-  // sun
   if (!isNight && !isDusk) {
-    bx.fillStyle = '#F1C40F';
-    bx.beginPath(); bx.arc(1020, 70, 20, 0, Math.PI*2); bx.fill();
-    bx.fillStyle = 'rgba(241,196,15,0.2)';
-    bx.beginPath(); bx.arc(1020, 70, 35, 0, Math.PI*2); bx.fill();
+    bx.fillStyle = '#e8a44a';
+    bx.globalAlpha = 0.15;
+    bx.beginPath(); bx.arc(1020, 65, 40, 0, Math.PI*2); bx.fill();
+    bx.globalAlpha = 0.8;
+    bx.fillStyle = '#f0c060';
+    bx.beginPath(); bx.arc(1020, 65, 16, 0, Math.PI*2); bx.fill();
+    bx.globalAlpha = 1;
   }
 
-  // far buildings silhouette
-  const buildingColor = isNight ? '#151528' : isDusk ? '#3a2040' : '#8a9aaa';
-  bx.fillStyle = buildingColor;
-  const buildings = [
-    [0,120,60,160],[70,100,50,180],[130,130,70,150],[210,90,45,190],
-    [260,110,55,170],[325,95,65,185],[400,125,50,155],[460,105,60,175],
-    [530,115,45,165],[585,85,70,195],[665,120,55,160],[730,100,50,180],
-    [790,130,65,150],[865,95,55,185],[930,110,60,170],[1000,120,70,160],
-    [1080,100,55,180],[1145,115,55,165]
-  ];
-  buildings.forEach(([x,y,w,h]) => {
+  // Buildings — warm tinted, not pure gray
+  const bc = isNight ? '#141322' : isDusk ? '#3a2238' : '#8a8898';
+  bx.fillStyle = bc;
+  [[0,115,58,165],[68,95,48,185],[128,125,68,155],[208,88,43,192],
+   [258,108,53,172],[322,92,63,188],[398,122,48,158],[458,102,58,178],
+   [528,112,43,168],[582,82,68,198],[662,118,53,162],[728,98,48,182],
+   [788,128,63,152],[862,92,53,188],[928,108,58,172],[998,118,68,162],
+   [1078,98,53,182],[1142,112,53,168]
+  ].forEach(([x,y,w,h]) => {
     bx.fillRect(x, y, w, h);
-    // windows
-    bx.fillStyle = isNight ? 'rgba(247,220,111,0.6)' : 'rgba(135,193,233,0.3)';
-    for (let wy = y+10; wy < y+h-20; wy += 18) {
-      for (let wx = x+6; wx < x+w-6; wx += 12) {
-        if (isNight && Math.random() > 0.35) bx.fillRect(wx, wy, 6, 8);
-        else if (!isNight) bx.fillRect(wx, wy, 6, 8);
+    if (isNight) {
+      bx.fillStyle = 'rgba(232,164,74,0.5)';
+      for (let wy = y+12; wy < y+h-20; wy += 18) {
+        for (let wx = x+6; wx < x+w-6; wx += 12) {
+          if (Math.random() > 0.4) bx.fillRect(wx, wy, 5, 7);
+        }
       }
+      bx.fillStyle = bc;
+    } else {
+      bx.fillStyle = 'rgba(120,140,170,0.25)';
+      for (let wy = y+12; wy < y+h-20; wy += 18) {
+        for (let wx = x+6; wx < x+w-6; wx += 12) {
+          bx.fillRect(wx, wy, 5, 7);
+        }
+      }
+      bx.fillStyle = bc;
     }
-    bx.fillStyle = buildingColor;
   });
 
-  // ground layers
-  // sidewalk
-  bx.fillStyle = isNight ? '#2a2a2a' : isDusk ? '#8a7a6a' : '#c0b8a8';
+  // Sidewalk — warm tinted
+  bx.fillStyle = isNight ? '#262430' : isDusk ? '#847362' : '#b5aa96';
   bx.fillRect(0, 380, SW, 40);
-  // sidewalk tiles
-  bx.strokeStyle = isNight ? '#222' : '#b0a898';
+  bx.strokeStyle = isNight ? '#1e1c28' : '#a89a88';
+  bx.lineWidth = 1;
   for (let tx = 0; tx < SW; tx += 30) {
     bx.beginPath(); bx.moveTo(tx, 380); bx.lineTo(tx, 420); bx.stroke();
   }
 
-  // road
-  bx.fillStyle = isNight ? '#1a1a1a' : isDusk ? '#4a4a4a' : '#555';
+  // Road — warm dark
+  bx.fillStyle = isNight ? '#18161e' : isDusk ? '#454040' : '#504a45';
   bx.fillRect(0, 420, SW, 180);
-  
-  // road center line
-  bx.fillStyle = isNight ? '#553' : '#F1C40F';
-  for (let lx = 0; lx < SW; lx += 50) {
-    bx.fillRect(lx, 505, 25, 4);
-  }
 
-  // road edge lines
-  bx.fillStyle = '#fff';
-  bx.globalAlpha = isNight ? 0.3 : 0.5;
+  // Center line — warm yellow
+  bx.fillStyle = isNight ? '#605530' : '#c09840';
+  for (let lx = 0; lx < SW; lx += 50) bx.fillRect(lx, 505, 25, 3);
+
+  // Edge lines — subtle
+  bx.fillStyle = 'rgba(228,220,208,0.2)';
   bx.fillRect(0, 425, SW, 2);
-  bx.fillRect(0, 595, SW, 3);
-  bx.globalAlpha = 1;
-
-  // some puddles if night (wet road feel)
-  if (isNight) {
-    bx.fillStyle = 'rgba(100,100,200,0.08)';
-    bx.fillRect(200, 440, 80, 30);
-    bx.fillRect(600, 460, 60, 25);
-    bx.fillRect(900, 450, 70, 20);
-  }
+  bx.fillRect(0, 596, SW, 2);
 }
 
-drawBackground();
+drawBG();
 
 // === SPRITES ===
 const sprites = [
   { name: '故宫角楼', file: 'sprites/gugong.jpg', query: '北京故宫角楼 摄影', x: 20, y: 100, w: 180, h: 180, anim: 'anim-breathe' },
   { name: '胡同门楼', file: 'sprites/hutong.jpg', query: '北京胡同 旅游攻略', x: 220, y: 140, w: 170, h: 170, anim: 'anim-breathe' },
   { name: '煎饼摊', file: 'sprites/jianbing.jpg', query: '北京煎饼果子 推荐', x: 410, y: 180, w: 140, h: 140, anim: 'anim-bob' },
-  { name: '奶茶店', file: 'sprites/milktea.jpg', query: '北京奶茶店 排行榜', x: 570, y: 130, w: 180, h: 180, anim: 'anim-flicker' },
-  { name: '便利店', file: 'sprites/konbini.jpg', query: '北京便利店 24小时', x: 770, y: 130, w: 180, h: 180, anim: 'anim-flicker' },
+  { name: '奶茶店', file: 'sprites/milktea.jpg', query: '北京奶茶店 排行榜', x: 570, y: 130, w: 180, h: 180, anim: 'anim-glow' },
+  { name: '便利店', file: 'sprites/konbini.jpg', query: '北京便利店 24小时', x: 770, y: 130, w: 180, h: 180, anim: 'anim-glow' },
   { name: '银杏树', file: 'sprites/ginkgo.jpg', query: '北京银杏大道 最佳时间', x: 970, y: 80, w: 130, h: 240, anim: 'anim-sway' },
   { name: '共享单车', file: 'sprites/bike.jpg', query: '北京共享单车', x: 400, y: 370, w: 80, h: 50, anim: '' },
   { name: '邮筒', file: 'sprites/mailbox.jpg', query: '中国邮政 明信片', x: 760, y: 330, w: 55, h: 70, anim: 'anim-breathe' },
   { name: '胡同猫', file: 'sprites/cat.jpg', query: '北京胡同猫 纪录片', x: 195, y: 340, w: 60, h: 65, anim: 'anim-bob' },
 ];
 
-// Remove duplicate jianbing
-sprites.splice(9, 1);
+const sceneInner = document.getElementById('scene-inner');
 
-// Fix: use unique convenience store sprite (reuse milktea for now, noted)
-// TODO: generate dedicated convenience store sprite
-
-const sceneEl = document.getElementById('scene-inner');
-
-// === OVERLAY CANVAS for particles ===
-const overlay = document.createElement('canvas');
-overlay.width = SW; overlay.height = SH;
-overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50;image-rendering:pixelated;';
-sceneEl.appendChild(overlay);
-const ox = overlay.getContext('2d');
-
-// === Particle system ===
-const particles = [];
-
-// Steam from jianbing
-function spawnSteam() {
-  particles.push({ type:'steam', x:470+Math.random()*40, y:185, vx:(Math.random()-0.5)*0.3, vy:-0.5-Math.random()*0.3, life:60+Math.random()*40, maxLife:100, size:3+Math.random()*3 });
-}
-
-// Lantern glow particles (from hutong)
-function spawnLanternGlow() {
-  particles.push({ type:'glow', x:240+Math.random()*20, y:155+Math.random()*10, vx:(Math.random()-0.5)*0.2, vy:-0.2, life:40+Math.random()*30, maxLife:70, size:2+Math.random()*2 });
-  particles.push({ type:'glow', x:360+Math.random()*20, y:155+Math.random()*10, vx:(Math.random()-0.5)*0.2, vy:-0.2, life:40+Math.random()*30, maxLife:70, size:2+Math.random()*2 });
-}
-
-// Falling leaves from ginkgo
-function spawnLeaf() {
-  particles.push({ type:'leaf', x:990+Math.random()*100, y:100+Math.random()*30, vx:0.3+Math.random()*0.5, vy:0.5+Math.random()*0.5, life:200+Math.random()*100, maxLife:300, size:3+Math.random()*2, wobble: Math.random()*Math.PI*2 });
-}
-
-// Night fireflies
-function spawnFirefly() {
-  particles.push({ type:'firefly', x:Math.random()*SW, y:280+Math.random()*100, vx:(Math.random()-0.5)*0.5, vy:(Math.random()-0.5)*0.3, life:150+Math.random()*100, maxLife:250, size:2, phase: Math.random()*Math.PI*2 });
-}
-
-let particleTick = 0;
-function updateParticles() {
-  particleTick++;
-  
-  // Spawn
-  if (particleTick % 8 === 0) spawnSteam();
-  if (particleTick % 25 === 0) spawnLeaf();
-  if (isNight && particleTick % 15 === 0) spawnLanternGlow();
-  if (isNight && particleTick % 20 === 0) spawnFirefly();
-  
-  ox.clearRect(0, 0, SW, SH);
-  
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
-    
-    if (p.life <= 0) { particles.splice(i, 1); continue; }
-    
-    const alpha = Math.min(1, p.life / (p.maxLife * 0.3));
-    
-    if (p.type === 'steam') {
-      ox.fillStyle = `rgba(200,200,200,${alpha * 0.4})`;
-      ox.beginPath();
-      ox.arc(p.x, p.y, p.size, 0, Math.PI*2);
-      ox.fill();
-    } else if (p.type === 'glow') {
-      ox.fillStyle = `rgba(255,100,50,${alpha * 0.5})`;
-      ox.beginPath();
-      ox.arc(p.x, p.y, p.size, 0, Math.PI*2);
-      ox.fill();
-    } else if (p.type === 'leaf') {
-      p.wobble += 0.05;
-      p.vx = 0.3 + Math.sin(p.wobble) * 0.8;
-      ox.fillStyle = `rgba(140,200,60,${alpha * 0.7})`;
-      ox.fillRect(p.x, p.y, p.size, p.size * 0.6);
-    } else if (p.type === 'firefly') {
-      p.phase += 0.05;
-      const glow = 0.3 + 0.7 * Math.abs(Math.sin(p.phase));
-      ox.fillStyle = `rgba(255,255,100,${glow * alpha})`;
-      ox.beginPath();
-      ox.arc(p.x, p.y, p.size, 0, Math.PI*2);
-      ox.fill();
-      ox.fillStyle = `rgba(255,255,100,${glow * alpha * 0.3})`;
-      ox.beginPath();
-      ox.arc(p.x, p.y, p.size * 3, 0, Math.PI*2);
-      ox.fill();
-    }
-  }
-  
-  requestAnimationFrame(updateParticles);
-}
-updateParticles();
-
-sprites.forEach(s => {
+sprites.forEach((s, i) => {
   const div = document.createElement('div');
   div.className = 'sprite' + (s.anim ? ' ' + s.anim : '');
   div.style.left = pct(s.x, SW);
   div.style.top = pct(s.y, SH);
   div.style.width = pct(s.w, SW);
   div.style.height = pct(s.h, SH);
-  div.style.animationDelay = (Math.random() * 2).toFixed(1) + 's';
 
   const img = document.createElement('img');
   img.src = s.file;
   img.alt = s.name;
   img.draggable = false;
-  
+  img.loading = 'lazy';
+
   const label = document.createElement('div');
   label.className = 'label';
-  label.textContent = '🔍 ' + s.name;
+  label.textContent = s.name;
 
   div.appendChild(img);
   div.appendChild(label);
@@ -298,22 +369,24 @@ sprites.forEach(s => {
 
   // Night dimming
   if (isNight) {
-    img.style.filter = 'brightness(0.5)';
-    // Glow for shops
+    img.style.filter = 'brightness(0.5) saturate(0.8)';
     if (['奶茶店','便利店','煎饼摊'].includes(s.name)) {
-      img.style.filter = 'brightness(0.7)';
-      div.style.boxShadow = '0 0 20px rgba(255,200,100,0.3)';
+      img.style.filter = 'brightness(0.7) saturate(0.9)';
+      div.style.boxShadow = '0 0 25px var(--glow-warm)';
     }
   } else if (isDusk) {
-    img.style.filter = 'brightness(0.75) sepia(0.2)';
+    img.style.filter = 'brightness(0.78) sepia(0.15)';
   }
 
-  sceneEl.appendChild(div);
+  sceneInner.appendChild(div);
+
+  // Staggered entrance
+  setTimeout(() => div.classList.add('revealed'), 150 + i * 80);
 });
 
-// === TAXI ANIMATION ===
+// === TAXI ===
 const taxiDiv = document.createElement('div');
-taxiDiv.className = 'sprite';
+taxiDiv.className = 'sprite revealed';
 taxiDiv.style.top = pct(460, SH);
 taxiDiv.style.width = pct(120, SW);
 taxiDiv.style.height = pct(60, SH);
@@ -322,40 +395,104 @@ const taxiImg = document.createElement('img');
 taxiImg.src = 'sprites/taxi.jpg';
 taxiImg.alt = '出租车';
 taxiImg.draggable = false;
-if (isNight) { taxiImg.style.filter = 'brightness(0.6)'; taxiDiv.style.boxShadow = '0 0 10px rgba(255,200,100,0.2)'; }
+if (isNight) { taxiImg.style.filter = 'brightness(0.55) saturate(0.8)'; }
 const taxiLabel = document.createElement('div');
 taxiLabel.className = 'label';
-taxiLabel.textContent = '🔍 北京出租车';
+taxiLabel.textContent = '出租车';
 taxiDiv.appendChild(taxiImg);
 taxiDiv.appendChild(taxiLabel);
 taxiDiv.addEventListener('click', () => {
   window.open('https://www.bing.com/videos/search?q=' + encodeURIComponent('北京出租车'), '_blank');
 });
-sceneEl.appendChild(taxiDiv);
+sceneInner.appendChild(taxiDiv);
 
 let taxiX = -150;
 function animateTaxi() {
-  taxiX += 0.8;
+  taxiX += 0.6;
   if (taxiX > SW + 50) taxiX = -150;
   taxiDiv.style.left = pct(taxiX, SW);
   requestAnimationFrame(animateTaxi);
 }
 animateTaxi();
 
-// === TWINKLING STARS ON CANVAS ===
+// === PARTICLE FX ===
+const particles = [];
+let tick = 0;
+
+function spawnSteam() {
+  particles.push({ type:'steam', x:470+Math.random()*40, y:190, vx:(Math.random()-0.5)*0.25, vy:-0.4-Math.random()*0.25, life:70, max:70, size:3+Math.random()*3 });
+}
+function spawnLeaf() {
+  particles.push({ type:'leaf', x:990+Math.random()*90, y:95+Math.random()*25, vx:0.3, vy:0.4+Math.random()*0.4, life:250, max:250, size:3, w:Math.random()*Math.PI*2 });
+}
+function spawnGlow() {
+  const base = Math.random() > 0.5 ? 245 : 365;
+  particles.push({ type:'glow', x:base+Math.random()*18, y:155+Math.random()*8, vx:(Math.random()-0.5)*0.15, vy:-0.18, life:50, max:50, size:2+Math.random()*2 });
+}
+function spawnFirefly() {
+  particles.push({ type:'fly', x:Math.random()*SW, y:285+Math.random()*90, vx:(Math.random()-0.5)*0.4, vy:(Math.random()-0.5)*0.25, life:200, max:200, size:2, ph:Math.random()*Math.PI*2 });
+}
+
+function updateFX() {
+  tick++;
+  if (tick % 10 === 0) spawnSteam();
+  if (tick % 28 === 0) spawnLeaf();
+  if (isNight && tick % 18 === 0) spawnGlow();
+  if (isNight && tick % 22 === 0) spawnFirefly();
+
+  fx.clearRect(0, 0, SW, SH);
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.life--;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+
+    const a = Math.min(1, p.life / (p.max * 0.3));
+
+    if (p.type === 'steam') {
+      fx.fillStyle = `rgba(200,195,185,${a * 0.3})`;
+      fx.beginPath(); fx.arc(p.x, p.y, p.size, 0, Math.PI*2); fx.fill();
+    } else if (p.type === 'leaf') {
+      p.w += 0.04;
+      p.vx = 0.3 + Math.sin(p.w) * 0.7;
+      fx.fillStyle = `rgba(130,185,70,${a * 0.6})`;
+      fx.fillRect(p.x, p.y, p.size, p.size * 0.6);
+    } else if (p.type === 'glow') {
+      fx.fillStyle = `rgba(232,164,74,${a * 0.4})`;
+      fx.beginPath(); fx.arc(p.x, p.y, p.size, 0, Math.PI*2); fx.fill();
+    } else if (p.type === 'fly') {
+      p.ph += 0.04;
+      const g = 0.3 + 0.7 * Math.abs(Math.sin(p.ph));
+      fx.fillStyle = `rgba(232,210,120,${g * a * 0.3})`;
+      fx.beginPath(); fx.arc(p.x, p.y, p.size * 3, 0, Math.PI*2); fx.fill();
+      fx.fillStyle = `rgba(240,225,160,${g * a})`;
+      fx.beginPath(); fx.arc(p.x, p.y, p.size, 0, Math.PI*2); fx.fill();
+    }
+  }
+
+  // Night: subtle ambient glow over shops
+  if (isNight) {
+    fx.fillStyle = 'rgba(232,164,74,0.03)';
+    fx.fillRect(560, 120, 200, 200);
+    fx.fillRect(760, 120, 200, 200);
+  }
+
+  requestAnimationFrame(updateFX);
+}
+updateFX();
+
+// === TWINKLING STARS ===
 if (isNight) {
-  let starTick = 0;
+  const starPositions = [[30,18],[185,28],[545,38],[905,18]];
+  let sTick = 0;
   function twinkle() {
-    starTick++;
-    // redraw a few stars with varying alpha
-    bx.fillStyle = '#0a0a1a';
-    [[30,20],[180,30],[540,40],[900,20]].forEach(([x,y]) => {
-      bx.fillRect(x-1, y-1, 4, 4);
-    });
-    [[30,20],[180,30],[540,40],[900,20]].forEach(([x,y],i) => {
-      const a = 0.4 + 0.6 * Math.abs(Math.sin(starTick * 0.03 + i * 1.5));
-      bx.fillStyle = `rgba(255,255,255,${a})`;
-      bx.fillRect(x, y, 2, 2);
+    sTick++;
+    starPositions.forEach(([sx,sy], i) => {
+      bx.fillStyle = '#0c0b18';
+      bx.fillRect(sx-1, sy-1, 4, 4);
+      const al = 0.3 + 0.7 * Math.abs(Math.sin(sTick * 0.025 + i * 1.8));
+      bx.fillStyle = `rgba(212,207,192,${al})`;
+      bx.fillRect(sx, sy, 2, 2);
     });
     requestAnimationFrame(twinkle);
   }
